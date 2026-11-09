@@ -1,46 +1,205 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Smart AI Studio</title>
+<meta name="theme-color" content="#111827">
+
 <style>
-body{margin:0;background:#10172a;color:white;font-family:Arial;text-align:center}
-header{padding:30px;background:linear-gradient(120deg,#5145cd,#087f72)}
-main{padding:20px;max-width:500px;margin:auto}
-.card{background:#202b43;padding:20px;margin:15px 0;border-radius:15px}
-button{background:#6555ed;color:white;border:0;padding:14px;border-radius:10px;width:100%;font-size:17px}
-textarea{width:95%;height:100px;margin:15px 0;border-radius:10px;padding:8px}
+*{box-sizing:border-box}
+body{
+ margin:0;background:#0b1020;color:white;
+ font-family:Arial,sans-serif
+}
+header{
+ padding:30px 18px;text-align:center;
+ background:linear-gradient(130deg,#4338ca,#0f766e)
+}
+h1{margin:0 0 10px}
+main{max-width:760px;margin:auto;padding:18px}
+section{
+ background:#202b45;border-radius:20px;
+ padding:20px;margin:16px 0
+}
+button{
+ border:0;border-radius:12px;padding:14px;
+ font-size:16px;font-weight:bold;
+ color:white;background:#5b50e8;
+ cursor:pointer
+}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.mode{background:#334155;border:2px solid transparent}
+.mode.active{background:#3730a3;border-color:#a5b4fc}
+textarea{
+ width:100%;padding:15px;border-radius:12px;
+ font-size:17px;min-height:110px;
+ background:#f8fafc;color:#111827
+}
+.send{width:100%;margin-top:12px}
+#answer{
+ white-space:pre-wrap;line-height:1.6;
+ margin-top:18px;overflow-wrap:anywhere
+}
+.hint{color:#cbd5e1}
+.hidden{display:none}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tabs button{flex:1}
+.secondary{background:#334155}
 </style>
 </head>
+
 <body>
 <header>
 <h1>✨ Smart AI Studio</h1>
 <p>Your AI Creative Assistant</p>
 </header>
+
 <main>
-<div class="card">
+<div class="tabs">
+<button onclick="show('chat')">AI Chat</button>
+<button class="secondary" onclick="show('video')">AI Video</button>
+<button class="secondary" onclick="show('tools')">Creator Tools</button>
+</div>
+
+<section id="chat">
 <h2>🤖 AI Chat</h2>
-<textarea id="msg" placeholder="Ask anything..."></textarea>
-<button onclick="chat()">Send Message</button>
-<p id="reply">AI Chat will connect soon.</p>
+<p class="hint">Choose your AI assistant</p>
+
+<div class="modes">
+<button id="fastBtn" class="mode active"
+onclick="setMode('fast')">
+⚡ Fast AI
+<small>Quick answers</small>
+</button>
+
+<button id="smartBtn" class="mode"
+onclick="setMode('smart')">
+🧠 Smart AI
+<small>Deep thinking</small>
+</button>
 </div>
-<div class="card">
+
+<p id="modeInfo" class="hint">
+Fast AI selected
+</p>
+
+<textarea id="question"
+placeholder="Write your message..."></textarea>
+
+<button class="send" id="sendBtn"
+onclick="sendChat()">
+Send Message
+</button>
+
+<div id="answer"></div>
+</section>
+
+<section id="video" class="hidden">
 <h2>🎬 AI Video Maker</h2>
-<textarea placeholder="Describe your video..."></textarea>
-<button onclick="alert('Video service will be connected soon!')">Create Video</button>
-</div>
+<textarea id="videoPrompt"
+placeholder="Describe your video..."></textarea>
+<button onclick="videoNotice()">Prepare Video</button>
+<p id="videoAnswer" class="hint">
+Video generation provider is not connected yet.
+</p>
+</section>
+
+<section id="tools" class="hidden">
+<h2>Creator Tools</h2>
+
+<label>Caption idea</label>
+<textarea id="caption" placeholder="Describe your photo"></textarea>
+<button onclick="makeCaption()">Make Caption</button>
+<p id="captionOut"></p>
+
+<label>Profile Bio</label>
+<textarea id="bio" placeholder="Your interests"></textarea>
+<button onclick="makeBio()">Make Bio</button>
+<p id="bioOut"></p>
+</section>
+
+<p class="hint">
+Smart AI Studio | Powered by Gemini AI
+</p>
 </main>
+
 <script>
-async function chat(){
-let m=document.getElementById('msg').value;
-let r=document.getElementById('reply');
-r.innerText='Connecting...';
-try{
-let x=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:m})});
-let d=await x.json();
-r.innerText=d.reply||d.error||'No response';
-}catch(e){r.innerText='AI service is not connected yet.'}
+let selectedMode = "fast";
+
+function show(id){
+ ["chat","video","tools"].forEach(x=>{
+ document.getElementById(x).classList.toggle("hidden",x!==id);
+ });
+}
+
+function setMode(mode){
+ selectedMode=mode;
+
+ document.getElementById("fastBtn")
+ .classList.toggle("active",mode==="fast");
+
+ document.getElementById("smartBtn")
+ .classList.toggle("active",mode==="smart");
+
+ document.getElementById("modeInfo").textContent =
+ mode==="fast" ? "⚡ Fast AI selected" : "🧠 Smart AI selected";
+}
+
+async function sendChat(){
+ const q=document.getElementById("question").value.trim();
+ const a=document.getElementById("answer");
+ const btn=document.getElementById("sendBtn");
+
+ if(!q){
+ a.textContent="Please write a message first.";
+ return;
+ }
+
+ btn.disabled=true;
+ btn.textContent="Please wait...";
+ a.textContent="AI is thinking...";
+
+ try{
+ const r=await fetch("/api/chat",{
+ method:"POST",
+ headers:{"Content-Type":"application/json"},
+ body:JSON.stringify({
+ message:q,
+ mode:selectedMode
+ })
+ });
+
+ const d=await r.json();
+
+ if(!r.ok) throw new Error(d.error||"Request failed");
+
+ a.textContent=d.reply||"No response received.";
+
+ }catch(e){
+ a.textContent="Error: "+e.message;
+ }finally{
+ btn.disabled=false;
+ btn.textContent="Send Message";
+ }
+}
+
+function videoNotice(){
+ document.getElementById("videoAnswer").textContent=
+ "Video generation provider is not connected yet.";
+}
+
+function makeCaption(){
+ const v=document.getElementById("caption").value.trim();
+ document.getElementById("captionOut").textContent=
+ v ? "✨ "+v+" — Make every moment count!" : "Enter a topic.";
+}
+
+function makeBio(){
+ const v=document.getElementById("bio").value.trim();
+ document.getElementById("bioOut").textContent=
+ v ? "✨ "+v+" | Creating • Learning • Sharing" : "Enter a topic.";
 }
 </script>
 </body>
