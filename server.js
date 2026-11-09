@@ -9,7 +9,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const MODELS = {
   fast: "gemini-3.5-flash-lite",
-  smart: "gemini-3.8-flash"
+  smart: "gemini-3.5-flash"
 };
 
 const sleep = (ms) =>
