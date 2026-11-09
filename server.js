@@ -18,7 +18,9 @@ app.get("/health", (req, res) => {
 });
 
 app.post("/api/chat", async (req, res) => {
+  console.log("CHAT REQUEST RECEIVED:", req.body);
   const message = String(req.body.message || "").trim();
+  
   const mode = req.body.mode === "smart" ? "smart" : "fast";
 
   if (!message) {
