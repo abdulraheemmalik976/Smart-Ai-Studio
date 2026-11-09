@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart AI Studio</title>
+<style>
+body{margin:0;background:#10172a;color:white;font-family:Arial;text-align:center}
+header{padding:30px;background:linear-gradient(120deg,#5145cd,#087f72)}
+main{padding:20px;max-width:500px;margin:auto}
+.card{background:#202b43;padding:20px;margin:15px 0;border-radius:15px}
+button{background:#6555ed;color:white;border:0;padding:14px;border-radius:10px;width:100%;font-size:17px}
+textarea{width:95%;height:100px;margin:15px 0;border-radius:10px;padding:8px}
+</style>
+</head>
+<body>
+<header>
+<h1>✨ Smart AI Studio</h1>
+<p>Your AI Creative Assistant</p>
+</header>
+<main>
+<div class="card">
+<h2>🤖 AI Chat</h2>
+<textarea id="msg" placeholder="Ask anything..."></textarea>
+<button onclick="chat()">Send Message</button>
+<p id="reply">AI Chat will connect soon.</p>
+</div>
+<div class="card">
+<h2>🎬 AI Video Maker</h2>
+<textarea placeholder="Describe your video..."></textarea>
+<button onclick="alert('Video service will be connected soon!')">Create Video</button>
+</div>
+</main>
+<script>
+async function chat(){
+let m=document.getElementById('msg').value;
+let r=document.getElementById('reply');
+r.innerText='Connecting...';
+try{
+let x=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:m})});
+let d=await x.json();
+r.innerText=d.reply||d.error||'No response';
+}catch(e){r.innerText='AI service is not connected yet.'}
+}
+</script>
+</body>
+</html>
