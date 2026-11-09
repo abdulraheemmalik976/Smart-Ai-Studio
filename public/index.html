@@ -5,202 +5,289 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Smart AI Studio</title>
-<meta name="theme-color" content="#111827">
-
 <style>
 *{box-sizing:border-box}
-body{
- margin:0;background:#0b1020;color:white;
- font-family:Arial,sans-serif
-}
-header{
- padding:30px 18px;text-align:center;
- background:linear-gradient(130deg,#4338ca,#0f766e)
-}
-h1{margin:0 0 10px}
-main{max-width:760px;margin:auto;padding:18px}
-section{
- background:#202b45;border-radius:20px;
- padding:20px;margin:16px 0
-}
-button{
- border:0;border-radius:12px;padding:14px;
- font-size:16px;font-weight:bold;
- color:white;background:#5b50e8;
- cursor:pointer
-}
-.modes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
-.mode{background:#334155;border:2px solid transparent}
-.mode.active{background:#3730a3;border-color:#a5b4fc}
-textarea{
- width:100%;padding:15px;border-radius:12px;
- font-size:17px;min-height:110px;
- background:#f8fafc;color:#111827
-}
-.send{width:100%;margin-top:12px}
-#answer{
- white-space:pre-wrap;line-height:1.6;
- margin-top:18px;overflow-wrap:anywhere
-}
-.hint{color:#cbd5e1}
-.hidden{display:none}
-.tabs{display:flex;gap:8px;flex-wrap:wrap}
+body{margin:0;background:#0b1020;color:white;font-family:Arial,sans-serif}
+header{padding:25px 15px;text-align:center;background:linear-gradient(130deg,#4338ca,#0f766e)}
+main{max-width:760px;margin:auto;padding:15px}
+section{background:#202b45;border-radius:18px;padding:18px;margin:15px 0}
+button{border:0;border-radius:10px;padding:13px;background:#5b50e8;color:white;font-weight:bold;font-size:15px;cursor:pointer}
+button:disabled{opacity:.5}
+textarea{width:100%;padding:14px;border-radius:12px;min-height:100px;font-size:17px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row button{flex:1}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:15px 0}
+.mode{background:#334155}
+.mode.active{background:#3730a3;border:2px solid #a5b4fc}
+#answer{white-space:pre-wrap;line-height:1.7;overflow-wrap:anywhere}
+.msg{padding:12px;margin:10px 0;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.user{background:#343b68}
+.bot{background:#17243b}
+.historyItem{width:100%;text-align:left;background:#334155;margin:5px 0}
+.small{font-size:12px;color:#cbd5e1}
+.tabs{display:flex;gap:7px;flex-wrap:wrap}
 .tabs button{flex:1}
-.secondary{background:#334155}
+.hidden{display:none}
 </style>
 </head>
-
 <body>
+
 <header>
 <h1>✨ Smart AI Studio</h1>
 <p>Your AI Creative Assistant</p>
 </header>
 
 <main>
+
+<section>
+<div class="row">
+<button onclick="newChat()">＋ New Chat</button>
+<button onclick="toggleHistory()">💬 Chat History</button>
+</div>
+<div id="history" class="hidden">
+<h3>Saved Conversations</h3>
+<div id="historyList"></div>
+</div>
+</section>
+
 <div class="tabs">
 <button onclick="show('chat')">AI Chat</button>
-<button class="secondary" onclick="show('video')">AI Video</button>
-<button class="secondary" onclick="show('tools')">Creator Tools</button>
+<button onclick="show('video')">AI Video</button>
+<button onclick="show('tools')">Creator Tools</button>
 </div>
 
 <section id="chat">
 <h2>🤖 AI Chat</h2>
-<p class="hint">Choose your AI assistant</p>
 
 <div class="modes">
-<button id="fastBtn" class="mode active"
-onclick="setMode('fast')">
-⚡ Fast AI
-<small>Quick answers</small>
+<button id="fastBtn" class="mode active" onclick="setMode('fast')">
+⚡ Fast AI<br>Quick answers
 </button>
-
-<button id="smartBtn" class="mode"
-onclick="setMode('smart')">
-🧠 Smart AI
-<small>Deep thinking</small>
+<button id="smartBtn" class="mode" onclick="setMode('smart')">
+🧠 Smart AI<br>Deep thinking
 </button>
 </div>
 
-<p id="modeInfo" class="hint">
-Fast AI selected
-</p>
-
-<textarea id="question"
-placeholder="Write your message..."></textarea>
-
-<button class="send" id="sendBtn"
-onclick="sendChat()">
-Send Message
-</button>
+<p id="modeInfo" class="small">Fast AI selected</p>
 
 <div id="answer"></div>
+
+<textarea id="question" placeholder="Write your message..."></textarea>
+
+<button id="sendBtn" style="width:100%;margin-top:10px" onclick="sendChat()">
+Send Message
+</button>
 </section>
 
 <section id="video" class="hidden">
 <h2>🎬 AI Video Maker</h2>
-<textarea id="videoPrompt"
-placeholder="Describe your video..."></textarea>
+<textarea id="videoPrompt" placeholder="Describe your video..."></textarea>
 <button onclick="videoNotice()">Prepare Video</button>
-<p id="videoAnswer" class="hint">
-Video generation provider is not connected yet.
-</p>
+<p id="videoAnswer">Video generation provider is not connected yet.</p>
 </section>
 
 <section id="tools" class="hidden">
 <h2>Creator Tools</h2>
-
-<label>Caption idea</label>
 <textarea id="caption" placeholder="Describe your photo"></textarea>
 <button onclick="makeCaption()">Make Caption</button>
 <p id="captionOut"></p>
-
-<label>Profile Bio</label>
 <textarea id="bio" placeholder="Your interests"></textarea>
 <button onclick="makeBio()">Make Bio</button>
 <p id="bioOut"></p>
 </section>
 
-<p class="hint">
-Smart AI Studio | Powered by Gemini AI
-</p>
+<p class="small">Smart AI Studio | Powered by Gemini AI</p>
 </main>
 
 <script>
-let selectedMode = "fast";
+let selectedMode="fast";
+let chats=[];
+let currentId=null;
 
-function show(id){
- ["chat","video","tools"].forEach(x=>{
- document.getElementById(x).classList.toggle("hidden",x!==id);
- });
+function save(){
+try{
+localStorage.setItem("smart_ai_chats",JSON.stringify(chats));
+}catch(e){}
+}
+
+function load(){
+try{
+chats=JSON.parse(localStorage.getItem("smart_ai_chats")||"[]");
+}catch(e){chats=[]}
+renderHistory();
+if(chats.length){
+currentId=chats[0].id;
+renderChat();
+}else{
+newChat();
+}
+}
+
+function newChat(){
+currentId=Date.now().toString();
+chats.unshift({
+id:currentId,
+title:"New Chat",
+messages:[],
+updated:Date.now()
+});
+save();
+renderChat();
+renderHistory();
+document.getElementById("question").value="";
+show("chat");
+}
+
+function currentChat(){
+return chats.find(c=>c.id===currentId);
+}
+
+function renderChat(){
+const chat=currentChat();
+const box=document.getElementById("answer");
+box.innerHTML="";
+if(!chat)return;
+
+chat.messages.forEach(m=>{
+const div=document.createElement("div");
+div.className="msg "+(m.role==="user"?"user":"bot");
+div.textContent=(m.role==="user"?"You: ":"AI: ")+m.text;
+box.appendChild(div);
+});
+}
+
+function renderHistory(){
+const list=document.getElementById("historyList");
+list.innerHTML="";
+
+chats.forEach(chat=>{
+const wrap=document.createElement("div");
+wrap.style.display="flex";
+wrap.style.gap="6px";
+wrap.style.margin="5px 0";
+
+const open=document.createElement("button");
+open.className="historyItem";
+open.textContent=chat.title;
+open.onclick=()=>{
+currentId=chat.id;
+renderChat();
+document.getElementById("history").classList.add("hidden");
+show("chat");
+};
+
+const del=document.createElement("button");
+del.textContent="🗑️";
+del.style.background="#8b2635";
+del.onclick=()=>{
+if(!confirm("Delete this conversation?"))return;
+chats=chats.filter(c=>c.id!==chat.id);
+if(currentId===chat.id){
+currentId=null;
+if(chats.length)currentId=chats[0].id;
+else return newChat();
+}
+save();
+renderHistory();
+renderChat();
+};
+
+wrap.append(open,del);
+list.appendChild(wrap);
+});
+}
+
+function toggleHistory(){
+document.getElementById("history").classList.toggle("hidden");
+renderHistory();
 }
 
 function setMode(mode){
- selectedMode=mode;
+selectedMode=mode;
+document.getElementById("fastBtn").classList.toggle("active",mode==="fast");
+document.getElementById("smartBtn").classList.toggle("active",mode==="smart");
+document.getElementById("modeInfo").textContent=
+mode==="fast"?"⚡ Fast AI selected":"🧠 Smart AI selected";
+}
 
- document.getElementById("fastBtn")
- .classList.toggle("active",mode==="fast");
-
- document.getElementById("smartBtn")
- .classList.toggle("active",mode==="smart");
-
- document.getElementById("modeInfo").textContent =
- mode==="fast" ? "⚡ Fast AI selected" : "🧠 Smart AI selected";
+function addMessage(role,text){
+const chat=currentChat();
+if(!chat)return;
+chat.messages.push({role,text});
+if(role==="user"&&chat.messages.length===1){
+chat.title=text.slice(0,35);
+}
+chat.updated=Date.now();
+save();
+renderChat();
+renderHistory();
 }
 
 async function sendChat(){
- const q=document.getElementById("question").value.trim();
- const a=document.getElementById("answer");
- const btn=document.getElementById("sendBtn");
+const q=document.getElementById("question").value.trim();
+const btn=document.getElementById("sendBtn");
+if(!q)return alert("Please write a message.");
 
- if(!q){
- a.textContent="Please write a message first.";
- return;
- }
+if(btn.disabled)return;
+if(!currentChat())newChat();
 
- btn.disabled=true;
- btn.textContent="Please wait...";
- a.textContent="AI is thinking...";
+btn.disabled=true;
+btn.textContent="Please wait...";
 
- try{
- const r=await fetch("/api/chat",{
- method:"POST",
- headers:{"Content-Type":"application/json"},
- body:JSON.stringify({
- message:q,
- mode:selectedMode
- })
- });
+addMessage("user",q);
+document.getElementById("question").value="";
 
- const d=await r.json();
+const waiting=document.createElement("div");
+waiting.className="msg bot";
+waiting.textContent="AI is thinking...";
+document.getElementById("answer").appendChild(waiting);
 
- if(!r.ok) throw new Error(d.error||"Request failed");
+try{
+const r=await fetch("/api/chat",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({message:q,mode:selectedMode})
+});
+const d=await r.json();
 
- a.textContent=d.reply||"No response received.";
+waiting.remove();
 
- }catch(e){
- a.textContent="Error: "+e.message;
- }finally{
- btn.disabled=false;
- btn.textContent="Send Message";
- }
+if(!r.ok)throw new Error(d.error||"Request failed");
+
+addMessage("assistant",d.reply||"No response received.");
+}catch(e){
+waiting.remove();
+addMessage("assistant","Error: "+e.message);
+}finally{
+btn.disabled=false;
+btn.textContent="Send Message";
+}
+}
+
+function show(id){
+["chat","video","tools"].forEach(x=>{
+document.getElementById(x).classList.toggle("hidden",x!==id);
+});
 }
 
 function videoNotice(){
- document.getElementById("videoAnswer").textContent=
- "Video generation provider is not connected yet.";
+document.getElementById("videoAnswer").textContent=
+"Video generation provider is not connected yet.";
 }
 
 function makeCaption(){
- const v=document.getElementById("caption").value.trim();
- document.getElementById("captionOut").textContent=
- v ? "✨ "+v+" — Make every moment count!" : "Enter a topic.";
+const v=document.getElementById("caption").value.trim();
+document.getElementById("captionOut").textContent=
+v?"✨ "+v+" — Make every moment count!":"Enter a topic.";
 }
 
 function makeBio(){
- const v=document.getElementById("bio").value.trim();
- document.getElementById("bioOut").textContent=
- v ? "✨ "+v+" | Creating • Learning • Sharing" : "Enter a topic.";
+const v=document.getElementById("bio").value.trim();
+document.getElementById("bioOut").textContent=
+v?"✨ "+v+" | Creating • Learning • Sharing":"Enter a topic.";
 }
+
+load();
 </script>
 </body>
 </html>
