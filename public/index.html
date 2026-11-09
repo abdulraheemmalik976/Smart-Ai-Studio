@@ -79,6 +79,12 @@ Send Message
 </button>
 </section>
 
+<div class="row" style="margin-top:12px">
+  <button onclick="startVoice()">🎤 Speak to AI</button>
+  <button onclick="speakLastAnswer()">🔊 Listen to Answer</button>
+</div>
+<p id="voiceStatus" class="small">Voice Chat ready</p>
+  
 <section id="video" class="hidden">
 <h2>🎬 AI Video Maker</h2>
 <textarea id="videoPrompt" placeholder="Describe your video..."></textarea>
@@ -210,8 +216,8 @@ document.getElementById("modeInfo").textContent=
 mode==="fast"?"⚡ Fast AI selected":"🧠 Smart AI selected";
 }
 
-function addMessage(role,text){
-const chat=currentChat();
+function addMessage(role,text){chat.messages.push({role,text});
+const chat=currentChat();if(role === "assistant") lastAIReply = text;
 if(!chat)return;
 chat.messages.push({role,text});
 if(role==="user"&&chat.messages.length===1){
@@ -287,6 +293,69 @@ document.getElementById("bioOut").textContent=
 v?"✨ "+v+" | Creating • Learning • Sharing":"Enter a topic.";
 }
 
+let lastAIReply = "";
+
+const SpeechRecognition =
+  window.SpeechRecognition ||
+  window.webkitSpeechRecognition;
+
+function startVoice() {
+  if (!SpeechRecognition) {
+    alert("Voice input is not supported. Please use Chrome.");
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = "ur-PK";
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  const status = document.getElementById("voiceStatus");
+
+  recognition.onstart = () => {
+    status.textContent = "🎤 Listening... Speak now";
+  };
+
+  recognition.onresult = (event) => {
+    const text = event.results[0][0].transcript;
+    document.getElementById("question").value = text;
+    status.textContent = "Sending your voice message...";
+    sendChat();
+  };
+
+  recognition.onerror = () => {
+    status.textContent = "Voice error. Check microphone permission.";
+  };
+
+  recognition.onend = () => {
+    if (status.textContent.includes("Listening")) {
+      status.textContent = "Voice recording stopped.";
+    }
+  };
+
+  recognition.start();
+}
+
+function speakLastAnswer() {
+  if (!lastAIReply) {
+    alert("No AI answer available yet.");
+    return;
+  }
+
+  if (!("speechSynthesis" in window)) {
+    alert("Voice output is not supported in this browser.");
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+
+  const speech = new SpeechSynthesisUtterance(lastAIReply);
+  speech.lang = "ur-PK";
+  speech.rate = 1;
+
+  window.speechSynthesis.speak(speech);
+  }
+  
 load();
 </script>
 </body>
