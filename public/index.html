@@ -16,25 +16,7 @@ button:disabled{opacity:.5}
 textarea{width:100%;padding:14px;border-radius:12px;min-height:100px;font-size:17px}
 .row{display:flex;gap:10px;flex-wrap:wrap}
 .row button{flex:1}
-function addMessage(role, text) {
-  const chat = currentChat();
-  if (!chat) return;
 
-  chat.messages.push({ role, text });
-
-  if (role === "assistant") {
-    lastAIReply = text;
-  }
-
-  if (role === "user" && chat.messages.length === 1) {
-    chat.title = text.slice(0, 35);
-  }
-
-  chat.updated = Date.now();
-  save();
-  renderChat();
-  renderHistory();
-  }
 </style>
 </head>
 <body>
@@ -223,17 +205,24 @@ document.getElementById("modeInfo").textContent=
 mode==="fast"?"⚡ Fast AI selected":"🧠 Smart AI selected";
 }
 
-function addMessage(role,text){chat.messages.push({role,text});
-const chat=currentChat();if(role === "assistant") lastAIReply = text;
-if(!chat)return;
-chat.messages.push({role,text});
-if(role==="user"&&chat.messages.length===1){
-chat.title=text.slice(0,35);
-}
-chat.updated=Date.now();
-save();
-renderChat();
-renderHistory();
+function addMessage(role, text) {
+  const chat = currentChat();
+  if (!chat) return;
+
+  chat.messages.push({ role, text });
+
+  if (role === "assistant") {
+    lastAIReply = text;
+  }
+
+  if (role === "user" && chat.messages.length === 1) {
+    chat.title = text.slice(0, 35);
+  }
+
+  chat.updated = Date.now();
+  save();
+  renderChat();
+  renderHistory();
 }
 
 async function sendChat(){
