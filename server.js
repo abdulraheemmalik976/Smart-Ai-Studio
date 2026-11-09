@@ -1,5 +1,3 @@
-
-        
 const express = require("express");
 const path = require("path");
 
@@ -10,25 +8,32 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const MODELS = {
   fast: "gemini-3.5-flash-lite",
-  smart: "gemini-3.5-flash"
+  smart: "gemini-3.8-flash"
 };
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", app: "Smart AI Studio" });
+  res.json({
+    status: "ok",
+    app: "Smart AI Studio"
+  });
 });
 
 app.post("/api/chat", async (req, res) => {
   console.log("CHAT REQUEST RECEIVED:", req.body);
-  const message = String(req.body.message || "").trim();
-  
-  const mode = req.body.mode === "smart" ? "smart" : "fast";
+
+  const message = String(req.body?.message || "").trim();
+  const mode = req.body?.mode === "smart" ? "smart" : "fast";
 
   if (!message) {
-    return res.status(400).json({ error: "Message is empty." });
+    return res.status(400).json({
+      error: "Please enter a message."
+    });
   }
 
   if (message.length > 10000) {
-    return res.status(400).json({ error: "Message is too long." });
+    return res.status(400).json({
+      error: "Message is too long."
+    });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -44,105 +49,80 @@ app.post("/api/chat", async (req, res) => {
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-  let lastError = "AI request failed.";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 45000);
 
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    console.log("AI REQUEST:", mode, model);
 
-    try {
-      console.log("AI request:", mode, model);
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey
-        },
-        body: JSON.stringify({
-          contents: [{
-            role: "user",
-            parts: [{ text: message }]
-          }],
-          generationConfig: {
-            maxOutputTokens: mode === "smart" ? 1024 : 512
-          }
-        }),
-        signal: controller.signal
-      });
-
-      const raw = await response.text();
-      let data;
-
-      try {
-        data = JSON.parse(raw);
-      } catch {
-        throw new Error("Google returned an invalid response.");
-      }
-
-      if (!response.ok) {
-        lastError = data.error?.message || "Google API error";
-
-        console.log("Google API status:", response.status);
-
-        if (
-          attempt === 0 &&
-          [429, 500, 502, 503, 504].includes(response.status)
-        ) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          continue;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify({
+        contents: [{
+          role: "user",
+          parts: [{ text: message }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: mode === "smart" ? 1024 : 512
         }
+      }),
+      signal: controller.signal
+    });
 
-        return res.status(response.status).json({
-          error: lastError
-        });
-      }
+    const data = await response.json();
 
-      const reply = data.candidates?.[0]?.content?.parts
-        ?.map(part => part.text || "")
-        .join("")
-        .trim();
+    if (!response.ok) {
+      const errorMessage =
+        data.error?.message || "Gemini API request failed.";
 
-      if (!reply) {
-        return res.status(502).json({
-          error: "Google returned no text. Please try again."
-        });
-      }
+      console.error("GEMINI ERROR:", response.status, errorMessage);
 
-      console.log("AI response successful:", mode);
-
-      return res.json({
-        reply,
-        mode,
-        model
+      return res.status(502).json({
+        error: errorMessage,
+        apiStatus: response.status
       });
-
-    } catch (error) {
-      lastError = error.name === "AbortError"
-        ? "AI request timed out after 20 seconds. Please try again."
-        : error.message;
-
-      console.log("AI request error:", lastError);
-
-      if (attempt === 0 && error.name !== "AbortError") {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        continue;
-      }
-
-      return res.status(504).json({
-        error: lastError
-      });
-
-    } finally {
-      clearTimeout(timer);
     }
-  }
 
-  return res.status(503).json({ error: lastError });
+    const reply = data.candidates?.[0]?.content?.parts
+      ?.map(part => part.text || "")
+      .join("")
+      .trim();
+
+    if (!reply) {
+      return res.status(502).json({
+        error: "AI returned an empty response. Please try again."
+      });
+    }
+
+    console.log("AI RESPONSE RECEIVED");
+
+    return res.json({
+      reply,
+      mode,
+      model
+    });
+
+  } catch (error) {
+    console.error("SERVER ERROR:", error);
+
+    return res.status(500).json({
+      error: error.name === "AbortError"
+        ? "AI request timed out. Please try again."
+        : error.message || "Server error."
+    });
+
+  } finally {
+    clearTimeout(timer);
+  }
 });
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("Smart AI Studio running on port " + PORT);
+  console.log("Smart AI Studio running on port", PORT);
 });
