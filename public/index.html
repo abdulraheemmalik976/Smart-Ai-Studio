@@ -160,6 +160,32 @@ footer{color:#8b8d92}
 #chat #sendBtn.sendTool svg{display:block!important;width:19px!important;height:19px!important;flex:none!important;stroke:#fff!important}
 #chat #sendBtn.sendTool:disabled{opacity:.65;background:#7cae9e!important}
 @media(max-width:560px){#chat #sendBtn.sendTool{flex-basis:38px!important;width:38px!important;min-width:38px!important;max-width:38px!important;height:38px!important;min-height:38px!important;max-height:38px!important}}
+
+/* ChatGPT-style slide-out navigation */
+.menuTrigger{display:inline-flex!important;align-items:center;justify-content:center;width:42px;height:42px;min-width:42px;padding:0;margin-left:auto;border:1px solid #e6e8eb;border-radius:12px;background:#fff;color:#30343b}
+.menuTrigger svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+header{display:flex;gap:12px}
+.brand{flex:1;min-width:0}
+.statusPill{order:2}
+.menuTrigger{order:3}
+.sidebarShade{position:fixed;inset:0;background:rgba(17,24,39,.32);z-index:80;opacity:0;visibility:hidden;transition:opacity .22s,visibility .22s}
+.sidebarShade.open{opacity:1;visibility:visible}
+.appSidebar{position:fixed;z-index:90;left:0;top:0;bottom:0;width:min(310px,84vw);padding:18px 14px;background:#fff;border-right:1px solid #e5e7eb;box-shadow:12px 0 40px rgba(0,0,0,.12);transform:translateX(-105%);transition:transform .24s ease;display:flex;flex-direction:column;gap:14px}
+.appSidebar.open{transform:translateX(0)}
+.sidebarTop{display:flex;align-items:center;justify-content:space-between;padding:4px 3px 12px;border-bottom:1px solid #eceef0;color:#24272c}
+.sidebarTop strong{font-size:16px}
+.sidebarClose{width:34px;height:34px;padding:0;border-radius:50%;background:#f2f3f5;color:#444;border:0;font-size:23px;line-height:1}
+.sidebarNew{display:flex;align-items:center;gap:10px;width:100%;background:#f4f6f7;color:#25282d;border:1px solid #e6e8eb;text-align:left;font-weight:600}
+.sidebarNew span{font-size:21px;color:#0d8b70}
+.sidebarSectionTitle{font-size:10px;font-weight:700;letter-spacing:1px;color:#8a9099;padding:8px 5px 0}
+.sidebarHistoryList{overflow-y:auto;display:flex;flex-direction:column;gap:5px;flex:1}
+.sidebarHistoryList>div{display:flex;align-items:center;gap:5px;padding:3px;border-radius:10px}
+.sidebarHistoryList>div:hover{background:#f5f6f7}
+.sidebarHistoryList button{background:transparent!important;color:#30343b!important;border:0!important;text-align:left;font-weight:500;min-width:0}
+.sidebarHistoryList button:first-child{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebarBottom{border-top:1px solid #eceef0;padding:12px 4px 2px;color:#8b9098;font-size:11px}
+body.sidebarOpen{overflow:hidden}
+@media(min-width:700px){.appSidebar{width:320px}}
 </style>
 </head>
 <body>
@@ -175,21 +201,25 @@ footer{color:#8b8d92}
 <circle cx="22.5" cy="31" r="2" fill="#53e9ff"/><circle cx="41.5" cy="31" r="2" fill="#53e9ff"/>
 <path d="M24 43q8 7 16 0" fill="none" stroke="#435b9b" stroke-width="3" stroke-linecap="round"/>
 </svg></div><div><h1>Smart AI Studio</h1><p>Your personal AI workspace</p></div></div>
+<button class="menuTrigger" type="button" onclick="toggleHistory()" aria-label="Open navigation menu" title="Menu">
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+</button>
 <div class="statusPill">● AI Assistant</div>
 </header>
 
-<main>
+<div id="sidebarShade" class="sidebarShade" onclick="closeSidebar()"></div>
+<aside id="appSidebar" class="appSidebar" aria-label="Chat navigation">
+<div class="sidebarTop">
+<strong>Smart AI Studio</strong>
+<button type="button" class="sidebarClose" onclick="closeSidebar()" aria-label="Close menu">×</button>
+</div>
+<button class="sidebarNew" type="button" onclick="newChat();closeSidebar()"><span>＋</span> New Chat</button>
+<div class="sidebarSectionTitle">RECENT CHATS</div>
+<div id="historyList" class="sidebarHistoryList"></div>
+<div class="sidebarBottom">Your personal AI workspace</div>
+</aside>
 
-<section>
-<div class="row">
-<button onclick="newChat()">＋ New Chat</button>
-<button onclick="toggleHistory()">💬 Chat History</button>
-</div>
-<div id="history" class="hidden">
-<h3>Saved Conversations</h3>
-<div id="historyList"></div>
-</div>
-</section>
+<main>
 
 <div class="tabs">
 <button onclick="show('chat')">AI Chat</button>
@@ -376,8 +406,18 @@ list.appendChild(wrap);
 }
 
 function toggleHistory(){
-document.getElementById("history").classList.toggle("hidden");
-renderHistory();
+const drawer=document.getElementById("appSidebar");
+const shade=document.getElementById("sidebarShade");
+const opening=!drawer.classList.contains("open");
+drawer.classList.toggle("open",opening);
+shade.classList.toggle("open",opening);
+document.body.classList.toggle("sidebarOpen",opening);
+if(opening)renderHistory();
+}
+function closeSidebar(){
+document.getElementById("appSidebar").classList.remove("open");
+document.getElementById("sidebarShade").classList.remove("open");
+document.body.classList.remove("sidebarOpen");
 }
 
 function setMode(mode){
