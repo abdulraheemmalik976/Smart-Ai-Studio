@@ -360,6 +360,15 @@ async function ensureUserProfile(user){
     badge.classList.remove("hidden");
   }
 }
+async function refreshCredits(){
+  if(!firebaseAuth||!firebaseAuth.currentUser)return;
+  try{
+    const token=await firebaseAuth.currentUser.getIdToken();
+    const response=await fetch("/api/credits",{headers:{Authorization:"Bearer "+token}});
+    const data=await response.json();
+    if(response.ok){const badge=document.getElementById("creditsBadge");badge.textContent="Credits: "+data.credits;badge.classList.remove("hidden");}
+  }catch(error){console.warn("Credits refresh failed:",error);}
+}
 async function initializeFirebaseAuth(){
   try{
     const response=await fetch("/api/firebase-config");
@@ -380,6 +389,7 @@ async function initializeFirebaseAuth(){
       if(user){
         closeAuth();
         await ensureUserProfile(user);
+        await refreshCredits();
       }else{
         badge.classList.add("hidden");
       }
@@ -607,7 +617,7 @@ document.getElementById("answer").appendChild(waiting);
 try{
 const r=await fetch("/api/chat",{
 method:"POST",
-headers:{"Content-Type":"application/json"},
+headers:{"Content-Type":"application/json","Authorization":"Bearer "+await firebaseAuth.currentUser.getIdToken()},
 body:JSON.stringify({
   message:q,
   mode:selectedMode,
@@ -621,6 +631,7 @@ waiting.remove();
 if(!r.ok)throw new Error(d.error||"Request failed");
 
 addMessage("assistant",d.reply||"No response received.");
+await refreshCredits();
 }catch(e){
 waiting.remove();
 addMessage("assistant","Error: "+e.message);
@@ -654,7 +665,7 @@ async function generateFreeVideo(){
   try{
     const create=await fetch("/api/video",{
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+await firebaseAuth.currentUser.getIdToken()},
       body:JSON.stringify({
         prompt,
         duration:Number(document.getElementById("videoDuration").value),
@@ -664,6 +675,7 @@ async function generateFreeVideo(){
     const job=await create.json();
     if(!create.ok)throw new Error(job.error||"Could not start video generation.");
     if(!job.id)throw new Error("Magic Hour did not return a job ID.");
+    await refreshCredits();
 
     btn.textContent="Generating video...";
     let result=null;
