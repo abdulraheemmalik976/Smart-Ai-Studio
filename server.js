@@ -6,9 +6,9 @@ const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-const MODELS = {
-  fast: "gemini-3.5-flash-lite",
-  smart: "gemini-3.8-flash"
+const MODEL_CHAINS = {
+  fast: ["gemini-3.5-flash-lite", "gemini-3.5-flash"],
+  smart: ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
 };
 
 app.get("/health", (req, res) => {
@@ -49,83 +49,70 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
-  const model = MODELS[mode];
-
-  const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-
+  const models = MODEL_CHAINS[mode];
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 45000);
+  const timer = setTimeout(() => controller.abort(), 90000);
 
   try {
-    console.log("AI REQUEST:", mode, model);
+    let lastStatus = 0;
+    let lastError = "AI service is temporarily busy.";
+    let reply = "";
+    let usedModel = "";
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{
-            text: "You are Smart AI Studio, a helpful, accurate, friendly AI assistant. Answer in the language the user uses, including Urdu or Roman Urdu. Use the conversation history for context. Be honest about uncertainty and never claim to perform actions you cannot perform."
-          }]
-        },
-        contents: [
-          ...history,
-          { role: "user", parts: [{ text: message }] }
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: mode === "smart" ? 2048 : 1024
-        }
-      }),
-      signal: controller.signal
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      const errorMessage =
-        data.error?.message || "Gemini API request failed.";
-
-      console.error("GEMINI ERROR:", response.status, errorMessage);
-
-      return res.status(502).json({
-        error: errorMessage,
-        apiStatus: response.status
+    for (const model of models) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      console.log("AI REQUEST:", mode, model);
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{
+              text: "You are Smart AI Studio, a helpful, accurate, friendly AI assistant. Answer in the language the user uses, including Urdu or Roman Urdu. Use conversation history. For difficult questions, reason carefully, explain steps clearly, and check your answer. Be honest about uncertainty."
+            }]
+          },
+          contents: [...history, { role: "user", parts: [{ text: message }] }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: mode === "smart" ? 4096 : 1024
+          }
+        }),
+        signal: controller.signal
       });
-    }
 
-    const reply = data.candidates?.[0]?.content?.parts
-      ?.map(part => part.text || "")
-      .join("")
-      .trim();
+      const data = await response.json();
+      if (!response.ok) {
+        lastStatus = response.status;
+        lastError = data.error?.message || "Gemini API request failed.";
+        console.error("GEMINI ERROR:", response.status, model, lastError);
+        if ([429, 500, 502, 503, 504].includes(response.status)) continue;
+        return res.status(502).json({ error: lastError, apiStatus: response.status });
+      }
+
+      reply = data.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("").trim() || "";
+      if (reply) {
+        usedModel = model;
+        break;
+      }
+      lastStatus = 502;
+      lastError = "AI returned an empty response.";
+    }
 
     if (!reply) {
-      return res.status(502).json({
-        error: "AI returned an empty response. Please try again."
+      console.error("ALL GEMINI MODELS BUSY:", lastStatus, lastError);
+      return res.status(503).json({
+        error: "Google AI is busy right now. Backup models were tried automatically. Please wait a minute and try again.",
+        apiStatus: lastStatus
       });
     }
 
-    console.log("AI RESPONSE RECEIVED");
-
-    return res.json({
-      reply,
-      mode,
-      model
-    });
-
+    console.log("AI RESPONSE RECEIVED:", usedModel);
+    return res.json({ reply, mode, model: usedModel });
   } catch (error) {
     console.error("SERVER ERROR:", error);
-
     return res.status(500).json({
-      error: error.name === "AbortError"
-        ? "AI request timed out. Please try again."
-        : error.message || "Server error."
+      error: error.name === "AbortError" ? "AI request timed out. Please try again." : error.message || "Server error."
     });
-
   } finally {
     clearTimeout(timer);
   }
