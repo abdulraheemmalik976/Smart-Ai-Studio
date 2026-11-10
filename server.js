@@ -1,10 +1,50 @@
 const express = require("express");
 const path = require("path");
+const admin = require("firebase-admin");
 
 const app = express();
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+
+function getAdminApp() {
+  if (admin.apps.length) return admin.app();
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!raw) throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON is missing in Railway Variables.");
+  const serviceAccount = JSON.parse(raw);
+  return admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+}
+async function requireUser(req, res, next) {
+  try {
+    const header = req.headers.authorization || "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+    if (!token) return res.status(401).json({ error: "Please sign in to use credits." });
+    const app = getAdminApp();
+    req.user = await app.auth().verifyIdToken(token);
+    req.db = app.firestore();
+    next();
+  } catch (error) {
+    console.error("AUTH VERIFY ERROR:", error.message);
+    return res.status(401).json({ error: "Your session expired. Please sign in again." });
+  }
+}
+async function getCredits(db, uid) {
+  const snap = await db.collection("users").doc(uid).get();
+  return snap.exists ? Number(snap.data().credits || 0) : 0;
+}
+async function chargeCredits(db, uid, amount) {
+  const ref = db.collection("users").doc(uid);
+  return db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new Error("USER_PROFILE_MISSING");
+    const current = Number(snap.data().credits || 0);
+    if (current < amount) throw new Error("NOT_ENOUGH_CREDITS");
+    const remaining = current - amount;
+    tx.update(ref, { credits: remaining });
+    return remaining;
+  });
+}
 
 const MODEL_CHAINS = {
   fast: ["gemini-3.5-flash-lite", "gemini-3.5-flash"],
@@ -26,6 +66,15 @@ app.get("/api/firebase-config", (req, res) => {
   res.json(config);
 });
 
+app.get("/api/credits", requireUser, async (req, res) => {
+  try {
+    const credits = await getCredits(req.db, req.user.uid);
+    res.json({ credits });
+  } catch (error) {
+    res.status(500).json({ error: "Could not load credits." });
+  }
+});
+
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
@@ -33,7 +82,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", requireUser, async (req, res) => {
   console.log("CHAT REQUEST RECEIVED:", req.body);
 
   const message = String(req.body?.message || "").trim();
@@ -122,7 +171,8 @@ app.post("/api/chat", async (req, res) => {
     }
 
     console.log("AI RESPONSE RECEIVED:", usedModel);
-    return res.json({ reply, mode, model: usedModel });
+    const remainingCredits = await chargeCredits(req.db, req.user.uid, 1);
+    return res.json({ reply, mode, model: usedModel, remainingCredits });
   } catch (error) {
     console.error("SERVER ERROR:", error);
     return res.status(500).json({
@@ -136,7 +186,7 @@ app.post("/api/chat", async (req, res) => {
 
 
 // Magic Hour text-to-video. Keep the API token on the server in Railway.
-app.post("/api/video", async (req, res) => {
+app.post("/api/video", requireUser, async (req, res) => {
   const prompt = String(req.body?.prompt || "").trim();
   const duration = Number(req.body?.duration || 6);
   const aspectRatio = ["16:9", "9:16", "1:1"].includes(req.body?.aspectRatio) ? req.body.aspectRatio : "16:9";
@@ -180,7 +230,8 @@ app.post("/api/video", async (req, res) => {
       });
     }
     if (!data.id) return res.status(502).json({ error: "Magic Hour did not return a video job ID." });
-    return res.json({ id: data.id, creditsCharged: data.credits_charged ?? null, status: "queued" });
+    const remainingCredits = await chargeCredits(req.db, req.user.uid, 5);
+    return res.json({ id: data.id, creditsCharged: data.credits_charged ?? null, remainingCredits, status: "queued" });
   } catch (error) {
     console.error("MAGIC HOUR VIDEO CREATE ERROR:", error);
     return res.status(502).json({ error: error.name === "TimeoutError" ? "Magic Hour request timed out. Please try again." : "Could not connect to Magic Hour. Please try again." });
