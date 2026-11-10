@@ -202,6 +202,48 @@ body.sidebarOpen{overflow:hidden}
 .authMessage{min-height:18px;color:#b42318!important}
 @media(max-width:560px){.authTrigger{padding:8px 9px!important;font-size:11px!important}}
 
+
+/* Professional compact responsive header */
+header{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto auto;
+  grid-template-areas:"brand status credits account" "brand status credits account";
+  align-items:center;
+  gap:10px;
+  min-height:76px;
+  padding:12px clamp(14px, calc((100vw - 980px)/2), 34px);
+  box-shadow:0 2px 14px rgba(20,30,45,.045);
+}
+header .brand{grid-area:brand;min-width:0;gap:11px}
+header .brandMark{width:42px;height:42px;flex:0 0 42px;background:linear-gradient(145deg,#172b35,#0d8b70);border-radius:14px}
+header .brand h1{font-size:18px;letter-spacing:-.55px;line-height:1.2}
+header .brand p{font-size:11px;margin-top:4px;color:#818791}
+header .menuTrigger{grid-area:account;grid-row:1;grid-column:4;width:40px;height:40px;padding:0;border-radius:12px;background:#f5f7f7;color:#374151;border:1px solid #e7eaec}
+header .statusPill{grid-area:status;display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:8px 12px;font-size:12px;font-weight:600}
+header #creditsBadge{grid-area:credits}
+header .authTrigger{grid-area:account;grid-row:2;grid-column:4;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:999px;padding:9px 13px;background:#f0faf6;color:#087f5b;border:1px solid #d6f0e5;font-size:12px;font-weight:650}
+@media(max-width:600px){
+ header{
+  grid-template-columns:minmax(0,1fr) auto auto;
+  grid-template-areas:"brand brand menu" "status credits account";
+  gap:9px 7px;
+  min-height:0;
+  padding:10px 12px;
+ }
+ header .brand{grid-area:brand}
+ header .brandMark{width:38px;height:38px;flex-basis:38px}
+ header .brand h1{font-size:16px}
+ header .brand p{font-size:10px}
+ header .menuTrigger{grid-area:menu;grid-row:1;grid-column:3;width:38px;height:38px}
+ header .statusPill{min-height:33px;padding:7px 9px;font-size:10px}
+ header .authTrigger{grid-area:account;grid-row:2;grid-column:3;max-width:112px;padding:8px 9px;font-size:10px}
+ header #creditsBadge{grid-area:credits;white-space:nowrap}
+}
+@media(max-width:370px){
+ header{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"brand menu" "status credits" "account account"}
+ header .authTrigger{grid-area:account;grid-row:3;grid-column:1/3;max-width:none;width:100%;text-align:center}
+}
+
 </style>
 </head>
 <body>
