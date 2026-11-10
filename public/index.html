@@ -88,35 +88,22 @@ Send Message
 <p id="voiceStatus" class="small">Voice Chat ready</p>
   
 <section id="video" class="hidden">
-<h2>🎬 AI Video Maker</h2>
-<p class="small">Choose a free option or the 10-video Premium credit package.</p>
-<div class="planGrid">
-  <div class="plan">
-    <h3>🆓 Free Plan</h3>
-    <p>Use Magic Hour's free Text-to-Video tool: up to 3 shared generations per day, 3 seconds each at 480p with watermark, subject to daily availability.</p>
-    <ul><li>Up to 3 shared generations per day</li><li>3 seconds, 480p, with watermark</li><li>Free website allowance is separate from API credits</li></ul>
-    <button class="freeBtn" onclick="openFreeVideo()">Open Free Video</button>
-  </div>
-  <div class="plan">
-    <h3>⭐ Premium — 10 Video Credits</h3>
-    <p><strong style="font-size:24px">$7 USD</strong> / 10 video credits</p><p>Each credit is planned for one video up to 5 seconds using the budget LTX model. Final limits depend on confirmed API credit cost.</p>
-    <ul><li>10 videos, up to 5 seconds each</li><li>Estimated provider budget: about $3 per package</li><li>Estimated gross margin: about $4 before fees, taxes, retries and hosting</li></ul>
-    <button class="premiumBtn" onclick="showPremiumInfo()">Choose Premium</button>
-  </div>
-</div>
+<h2>🎬 Free Video Maker</h2>
+<p class="small">Make a short animated video inside Smart AI Studio at no API cost. This creates a motion-text video, not a new AI-generated scene.</p>
 <div class="notice" style="margin-top:14px">
-<strong>Payments are not live yet.</strong><br>
-JazzCash, Easypaisa, bank transfer and international Visa/Mastercard will be enabled after merchant approval and secure payment verification. Do not send money yet.
+<strong>Free mode:</strong> Video is created on your device. No paid AI API or credits are used. You can add your own photo.
 </div>
-<textarea id="videoPrompt" placeholder="Describe your video..."></textarea>
+<textarea id="videoPrompt" placeholder="Write the text or message you want to show in your video..."></textarea>
+<label for="videoImage" class="small" style="display:block;margin:12px 0 6px">Optional: add your own photo</label>
+<input id="videoImage" type="file" accept="image/*" style="width:100%;padding:10px;background:#111a30;color:white;border-radius:10px">
 <div class="row" style="margin-top:10px">
-  <button id="generateVideoBtn" class="premiumBtn" onclick="generateVideo()">Generate Test Video</button>
+  <button id="generateVideoBtn" class="freeBtn" onclick="generateFreeVideo()">Create Free Video</button>
   <select id="videoRatio" aria-label="Video aspect ratio" style="padding:10px;border-radius:10px">
     <option value="16:9">Landscape 16:9</option>
     <option value="9:16">Portrait 9:16</option>
   </select>
 </div>
-<p id="videoAnswer" class="small">Video generation will use your Magic Hour API credits. Test only after adding the private API key in Railway. Payments and customer credits are not active.</p>
+<p id="videoAnswer" class="small">Video will be created on this device and downloaded as a WebM file. Keep this page open while it renders.</p>
 </section>
 
 <section id="tools" class="hidden">
@@ -318,62 +305,150 @@ document.getElementById(x).classList.toggle("hidden",x!==id);
 });
 }
 
-function openFreeVideo(){
-window.open("https://magichour.ai/products/text-to-video","_blank","noopener");
-document.getElementById("videoAnswer").textContent=
-"Magic Hour free Text-to-Video opened. Free website allowance is up to 3 shared generations per day, 3 seconds each at 480p with watermark, subject to the allowance shown on the page. This is separate from API credits.";
-}
-function showPremiumInfo(){
-document.getElementById("videoAnswer").textContent=
-"Premium selected: $7 USD for 10 video credits (planned maximum 5 seconds each). Checkout is not active. We must confirm the exact Magic Hour model cost and connect secure payment verification before accepting money.";
-}
+async function generateFreeVideo(){
+  const prompt = document.getElementById("videoPrompt").value.trim();
+  const btn = document.getElementById("generateVideoBtn");
+  const out = document.getElementById("videoAnswer");
+  const imageFile = document.getElementById("videoImage").files[0];
+  if (!prompt) return alert("Please write text for your video.");
+  if (btn.disabled) return;
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
+    out.textContent = "Your browser does not support video recording. Please try the latest Chrome browser.";
+    return;
+  }
 
-
-async function generateVideo(){
-  const prompt=document.getElementById("videoPrompt").value.trim();
-  const btn=document.getElementById("generateVideoBtn");
-  const out=document.getElementById("videoAnswer");
-  if(!prompt)return alert("Please describe your video first.");
-  if(btn.disabled)return;
-  if(!confirm("Hugging Face/Fal provider may charge credits for this video. Continue?"))return;
-  btn.disabled=true;
-  btn.textContent="Generating...";
-  out.textContent="Generating video. This may take several minutes...";
-  try{
-    const r=await fetch("/api/video",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({prompt})
-    });
-    if(!r.ok){
-      const d=await r.json().catch(()=>({}));
-      throw new Error(d.error||"Video request failed");
+  btn.disabled = true;
+  btn.textContent = "Creating video...";
+  out.textContent = "Creating your free video on this device. Please keep this page open...";
+  let image = null;
+  let imageUrl = null;
+  try {
+    if (imageFile) {
+      imageUrl = URL.createObjectURL(imageFile);
+      image = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Could not load your photo."));
+        img.src = imageUrl;
+      });
     }
-    const blob=await r.blob();
-    if(!blob.size)throw new Error("The provider returned an empty video.");
-    if(window.lastGeneratedVideoUrl)URL.revokeObjectURL(window.lastGeneratedVideoUrl);
-    window.lastGeneratedVideoUrl=URL.createObjectURL(blob);
-    out.innerHTML="";
-    const video=document.createElement("video");
-    video.controls=true;
-    video.playsInline=true;
-    video.style.width="100%";
-    video.style.marginTop="12px";
-    video.src=window.lastGeneratedVideoUrl;
+
+    const portrait = document.getElementById("videoRatio").value === "9:16";
+    const canvas = document.createElement("canvas");
+    canvas.width = portrait ? 720 : 1280;
+    canvas.height = portrait ? 1280 : 720;
+    const ctx = canvas.getContext("2d");
+    const words = prompt.split(/\s+/);
+    const lines = [];
+    let line = "";
+    ctx.font = "bold 54px Arial";
+    const maxWidth = canvas.width * 0.82;
+    words.forEach(word => {
+      const test = line ? line + " " + word : word;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else line = test;
+    });
+    if (line) lines.push(line);
+
+    const stream = canvas.captureStream(24);
+    const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      ? "video/webm;codecs=vp9"
+      : "video/webm";
+    const recorder = new MediaRecorder(stream, { mimeType: mime });
+    const chunks = [];
+    recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    const stopped = new Promise((resolve, reject) => {
+      recorder.onstop = resolve;
+      recorder.onerror = () => reject(new Error("Video recording failed on this device."));
+    });
+
+    const duration = 6000;
+    const started = performance.now();
+    function draw(now) {
+      const t = Math.min((now - started) / duration, 1);
+      const w = canvas.width, h = canvas.height;
+      const gradient = ctx.createLinearGradient(0, 0, w, h);
+      gradient.addColorStop(0, "#312e81");
+      gradient.addColorStop(0.55, "#0f766e");
+      gradient.addColorStop(1, "#111827");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, w, h);
+
+      if (image) {
+        const scale = Math.max(w / image.width, h / image.height);
+        const iw = image.width * scale, ih = image.height * scale;
+        ctx.globalAlpha = 0.42;
+        ctx.drawImage(image, (w-iw)/2, (h-ih)/2, iw, ih);
+        ctx.globalAlpha = 1;
+      }
+
+      ctx.fillStyle = "rgba(0,0,0,0.28)";
+      ctx.fillRect(0, 0, w, h);
+      const fontSize = portrait ? 42 : 54;
+      ctx.font = "bold " + fontSize + "px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const lineHeight = fontSize * 1.35;
+      const totalHeight = lines.length * lineHeight;
+      const offsetY = Math.sin(t * Math.PI * 2) * 12;
+      let y = h/2 - totalHeight/2 + lineHeight/2 + offsetY;
+      lines.forEach(txt => {
+        let shown = txt;
+        while (ctx.measureText(shown).width > w*0.84 && shown.length > 4) {
+          shown = shown.slice(0, -1);
+        }
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = "rgba(0,0,0,0.55)";
+        ctx.strokeText(shown, w/2, y);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(shown, w/2, y);
+        y += lineHeight;
+      });
+      ctx.font = "22px Arial";
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      ctx.fillText("Made with Smart AI Studio", w/2, h-42);
+      if (t < 1) requestAnimationFrame(draw);
+      else setTimeout(() => recorder.stop(), 150);
+    }
+
+    recorder.start();
+    requestAnimationFrame(draw);
+    await stopped;
+    stream.getTracks().forEach(track => track.stop());
+    const blob = new Blob(chunks, { type: "video/webm" });
+    if (!blob.size) throw new Error("No video data was created. Please try again.");
+    const url = URL.createObjectURL(blob);
+    if (window.lastGeneratedVideoUrl) URL.revokeObjectURL(window.lastGeneratedVideoUrl);
+    window.lastGeneratedVideoUrl = url;
+    out.innerHTML = "";
+    const video = document.createElement("video");
+    video.controls = true;
+    video.playsInline = true;
+    video.style.width = "100%";
+    video.style.marginTop = "12px";
+    video.src = url;
     out.appendChild(video);
-    const link=document.createElement("a");
-    link.href=window.lastGeneratedVideoUrl;
-    link.download="smart-ai-studio-video.mp4";
-    link.textContent="Download video";
-    link.style.display="block";
-    link.style.color="#a5b4fc";
-    link.style.marginTop="10px";
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "smart-ai-studio-free-video.webm";
+    link.textContent = "Download your free video";
+    link.style.display = "block";
+    link.style.color = "#a5b4fc";
+    link.style.marginTop = "12px";
     out.appendChild(link);
-  }catch(e){
-    out.textContent="Video error: "+e.message;
-  }finally{
-    btn.disabled=false;
-    btn.textContent="Generate Test Video";
+    const note = document.createElement("p");
+    note.className = "small";
+    note.textContent = "Your video is ready. This is a text/photo animation, not AI-generated footage.";
+    out.appendChild(note);
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+  } catch (error) {
+    out.textContent = "Video error: " + (error.message || "Could not create video.");
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Create Free Video";
   }
 }
 
