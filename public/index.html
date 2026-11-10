@@ -6,37 +6,51 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Smart AI Studio</title>
 <style>
+:root{--bg:#0b1020;--panel:#111a2e;--panel2:#17233b;--line:#263653;--muted:#9eabc4;--text:#f4f7ff;--accent:#7667ff;--accent2:#27b99a}
 *{box-sizing:border-box}
-body{margin:0;background:#0b1020;color:white;font-family:Arial,sans-serif}
-header{padding:25px 15px;text-align:center;background:linear-gradient(130deg,#4338ca,#0f766e)}
-main{max-width:760px;margin:auto;padding:15px}
-section{background:#202b45;border-radius:18px;padding:18px;margin:15px 0}
-button{border:0;border-radius:10px;padding:13px;background:#5b50e8;color:white;font-weight:bold;font-size:15px;cursor:pointer}
-button:disabled{opacity:.5}
-textarea{width:100%;padding:14px;border-radius:12px;min-height:100px;font-size:17px}
-.row{display:flex;gap:10px;flex-wrap:wrap}
-.row button{flex:1}
-
-
+body{margin:0;background:radial-gradient(ellipse at 50% -20%,#26335e 0%,var(--bg) 48%);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif;min-height:100vh}
+header{position:sticky;top:0;z-index:20;padding:13px 18px;background:rgba(11,16,32,.88);backdrop-filter:blur(18px);border-bottom:1px solid rgba(150,170,220,.14);display:flex;align-items:center;justify-content:space-between;gap:12px}
+header h1{font-size:19px;margin:0;letter-spacing:-.4px}header p{font-size:11px;color:var(--muted);margin:3px 0 0}
+.brand{display:flex;align-items:center;gap:10px}.brandMark{width:38px;height:38px;border-radius:13px;background:linear-gradient(135deg,#8174ff,#25b99c);display:grid;place-items:center;font-size:20px;box-shadow:0 7px 22px #6257d944}
+.statusPill{font-size:11px;color:#9fe8d4;border:1px solid #267d6b;padding:6px 9px;border-radius:30px;white-space:nowrap}
+main{max-width:900px;margin:auto;padding:18px 14px 42px}
+section{background:linear-gradient(160deg,rgba(24,37,62,.96),rgba(16,26,45,.96));border:1px solid var(--line);border-radius:20px;padding:20px;margin:14px 0;box-shadow:0 12px 35px #0002}
+button{border:1px solid transparent;border-radius:12px;padding:12px 15px;background:linear-gradient(135deg,#7667ff,#5549d8);color:white;font-weight:650;font-size:14px;cursor:pointer;transition:transform .15s,filter .15s}
+button:active{transform:scale(.98)}button:disabled{opacity:.55;cursor:wait}
+textarea,input,select{font:inherit}
+textarea{width:100%;padding:14px 15px;border:1px solid #354765;border-radius:15px;min-height:105px;font-size:15px;line-height:1.55;color:var(--text);background:#0c1528;outline:none;resize:vertical}
+textarea:focus,input:focus,select:focus{border-color:#8276ff;box-shadow:0 0 0 3px #7667ff24;outline:none}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row button{flex:1}
 .hidden{display:none!important}
-.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-.tabs button{flex:1;min-width:90px}
-.small{color:#b9c4dc}
+.tabs{display:flex;gap:7px;flex-wrap:wrap;margin:14px 0 18px;padding:5px;background:#0d172a;border:1px solid var(--line);border-radius:15px}
+.tabs button{flex:1;min-width:90px;background:transparent;color:#aebbd2;border-color:transparent;padding:11px 9px}
+.tabs button:first-child{background:#27335a;color:white}
+.small{color:var(--muted);font-size:13px;line-height:1.6}
+.modes{display:flex;gap:9px;margin:14px 0}.modes button{flex:1;background:#111c32;border:1px solid #344564;color:#d5def1}.modes button.active{background:#29275a;border-color:#7667ff;color:white}
+#answer{display:flex;flex-direction:column;gap:12px;margin:15px 0;min-height:160px}
+.msg{max-width:90%;padding:13px 15px;border-radius:17px;line-height:1.6;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.user{align-self:flex-end;background:linear-gradient(135deg,#6257d9,#4a43a9);border-bottom-right-radius:5px}
+.msg.bot{align-self:flex-start;background:#0c172b;border:1px solid #2a3a57;border-bottom-left-radius:5px}
+#question{min-height:90px}
+#sendBtn{width:100%;margin-top:9px}
 .planGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
-.plan{background:#111a30;border:1px solid #425071;border-radius:14px;padding:15px}
-.plan h3{margin-top:0}
-.plan ul{padding-left:20px;line-height:1.7}
-.muted{color:#b9c4dc;font-size:13px}
-.notice{background:#342b18;border:1px solid #8b6b28;padding:12px;border-radius:10px;color:#ffe3a3}
-.freeBtn{background:#087e67}
-.premiumBtn{background:#7357db}
+.plan{background:#0e192d;border:1px solid #334461;border-radius:15px;padding:15px}.plan h3{margin-top:0}
+.plan ul{padding-left:20px;line-height:1.7}.muted{color:var(--muted);font-size:13px}
+.notice{background:#2b281e;border:1px solid #79632d;padding:13px;border-radius:13px;color:#f4dda1;line-height:1.5}
+.freeBtn{background:linear-gradient(135deg,#159b7c,#087e67)}.premiumBtn{background:linear-gradient(135deg,#7667ff,#5549d8)}
+#history{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+#historyList>div{align-items:center}#historyList button{font-size:12px;padding:9px 11px}
+#voiceStatus{margin:8px 2px}
+a{color:#b9b0ff}
+footer{text-align:center;color:#72809b;font-size:12px;padding:12px}
+@media(max-width:560px){header{padding:11px 13px}main{padding:12px 10px 30px}section{padding:15px;border-radius:17px}.msg{max-width:96%}.statusPill{font-size:10px}.tabs button{font-size:12px}}
 </style>
 </head>
 <body>
 
 <header>
-<h1>✨ Smart AI Studio</h1>
-<p>Your AI Creative Assistant</p>
+<div class="brand"><div class="brandMark">✦</div><div><h1>Smart AI Studio</h1><p>Your personal AI workspace</p></div></div>
+<div class="statusPill">● AI Assistant</div>
 </header>
 
 <main>
@@ -59,7 +73,7 @@ textarea{width:100%;padding:14px;border-radius:12px;min-height:100px;font-size:1
 </div>
 
 <section id="chat">
-<h2>🤖 Smart AI Assistant</h2>\n<p class="small">Ask questions, continue conversations, write, learn and solve problems. Smart AI Studio uses your recent chat context.</p>
+<h2>🤖 Smart AI Assistant</h2><p class="small">Ask questions, continue conversations, write, learn and solve problems. Smart AI Studio uses your recent chat context.</p>
 
 <div class="modes">
 <button id="fastBtn" class="mode active" onclick="setMode('fast')">
@@ -126,7 +140,7 @@ Send Message
 <p id="bioOut"></p>
 </section>
 
-<p class="small">Smart AI Studio | Powered by Gemini AI</p>
+<footer>Smart AI Studio · Your ideas, powered by AI</footer>
 </main>
 
 <script>
