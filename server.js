@@ -121,6 +121,58 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
+
+
+// Magic Hour text-to-video: API key is stored only in Railway Variables.
+app.post("/api/video", async (req, res) => {
+  const prompt = String(req.body?.prompt || "").trim();
+  if (!prompt) return res.status(400).json({ error: "Please enter a video prompt." });
+  if (prompt.length > 2000) return res.status(400).json({ error: "Prompt is too long (max 2000 characters)." });
+
+  const apiKey = process.env.MAGIC_HOUR_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: "MAGIC_HOUR_API_KEY is missing in Railway Variables." });
+  }
+
+  const seconds = Number(req.body?.seconds || 5);
+  if (!Number.isFinite(seconds) || seconds < 1 || seconds > 10) {
+    return res.status(400).json({ error: "Video duration must be between 1 and 10 seconds." });
+  }
+
+  try {
+    const response = await fetch("https://api.magichour.ai/v1/text-to-video", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        end_seconds: seconds,
+        aspect_ratio: req.body?.aspect_ratio === "9:16" ? "9:16" : "16:9",
+        style: { prompt },
+        name: "Smart AI Studio video",
+        model: "ltx-2.5",
+        resolution: "480p",
+        audio: true
+      })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error("MAGIC HOUR API ERROR:", response.status, data);
+      return res.status(response.status).json({
+        error: data.message || data.error || "Magic Hour video request failed.",
+        details: data
+      });
+    }
+
+    return res.status(202).json({ message: "Video job submitted to Magic Hour.", project: data });
+  } catch (error) {
+    console.error("MAGIC HOUR SERVER ERROR:", error);
+    return res.status(502).json({ error: "Could not reach Magic Hour. Please try again." });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
