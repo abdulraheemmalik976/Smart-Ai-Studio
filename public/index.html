@@ -186,6 +186,22 @@ header{display:flex;gap:12px}
 .sidebarBottom{border-top:1px solid #eceef0;padding:12px 4px 2px;color:#8b9098;font-size:11px}
 body.sidebarOpen{overflow:hidden}
 @media(min-width:700px){.appSidebar{width:320px}}
+
+/* Firebase account UI */
+.authTrigger{order:2;background:#fff!important;color:#087f5b!important;border:1px solid #cfe9df!important;padding:9px 12px!important;border-radius:22px!important;font-size:12px!important;white-space:nowrap}
+.statusPill{order:1}
+.authOverlay{position:fixed;inset:0;z-index:120;background:rgba(20,25,35,.45);display:none;align-items:center;justify-content:center;padding:18px}
+.authOverlay.open{display:flex}
+.authCard{width:min(100%,410px);background:#fff;color:#202123;border:1px solid #e5e7eb;border-radius:20px;padding:22px;box-shadow:0 20px 60px #0003}
+.authCard h2{margin:0 0 6px;font-size:22px}
+.authCard p{color:#6b7280;font-size:13px;line-height:1.5}
+.authCard input{display:block;width:100%;margin:10px 0;padding:13px;border:1px solid #d7dbe0;border-radius:11px;background:#fff;color:#202123}
+.authCard button{width:100%;margin-top:9px}
+.authGoogle{background:#fff!important;color:#333!important;border:1px solid #d9dce1!important}
+.authClose{float:right;width:34px!important;height:34px;padding:0!important;margin:0!important;border-radius:50%;background:#f2f3f5;color:#444}
+.authMessage{min-height:18px;color:#b42318!important}
+@media(max-width:560px){.authTrigger{padding:8px 9px!important;font-size:11px!important}}
+
 </style>
 </head>
 <body>
@@ -205,6 +221,7 @@ body.sidebarOpen{overflow:hidden}
 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
 </button>
 <div class="statusPill">● AI Assistant</div>
+<button class="authTrigger" id="authTrigger" type="button" onclick="openAuth()">Sign in</button>
 </header>
 
 <div id="sidebarShade" class="sidebarShade" onclick="closeSidebar()"></div>
@@ -219,6 +236,19 @@ body.sidebarOpen{overflow:hidden}
 <div class="sidebarBottom">Your personal AI workspace</div>
 </aside>
 
+<div id="authOverlay" class="authOverlay" onclick="if(event.target===this)closeAuth()">
+  <div class="authCard">
+    <button class="authClose" type="button" onclick="closeAuth()" aria-label="Close">×</button>
+    <h2 id="authTitle">Sign in</h2>
+    <p id="authSubtitle">Sign in to your Smart AI Studio account.</p>
+    <input id="authEmail" type="email" autocomplete="email" placeholder="Email address">
+    <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password">
+    <button id="emailAuthBtn" type="button" onclick="submitEmailAuth()">Sign in with email</button>
+    <button class="authGoogle" type="button" onclick="signInGoogle()">Continue with Google</button>
+    <button id="authSwitch" class="authGoogle" type="button" onclick="toggleAuthMode()">Create new account</button>
+    <p id="authMessage" class="authMessage" aria-live="polite"></p>
+  </div>
+</div>
 <main>
 
 <div class="tabs">
@@ -299,7 +329,80 @@ body.sidebarOpen{overflow:hidden}
 <footer>Smart AI Studio · Your ideas, powered by AI</footer>
 </main>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
+let firebaseAuth=null;
+let authMode="signin";
+async function initializeFirebaseAuth(){
+  try{
+    const response=await fetch("/api/firebase-config");
+    const config=await response.json();
+    if(!response.ok||!config.apiKey||!config.projectId||!config.appId){
+      console.warn("Firebase auth is not configured:",config.error||"Missing Firebase settings");
+      document.getElementById("authMessage").textContent="Firebase setup is incomplete. Add the required Firebase settings in Railway.";
+      return;
+    }
+    if(!firebase.apps.length)firebase.initializeApp(config);
+    firebaseAuth=firebase.auth();
+    firebaseAuth.onAuthStateChanged(user=>{
+      const button=document.getElementById("authTrigger");
+      button.textContent=user?(user.displayName||user.email||"My account").split("@")[0]:"Sign in";
+      button.title=user?user.email:"Sign in or create an account";
+      if(user)closeAuth();
+    });
+  }catch(error){
+    console.error("Firebase initialization failed:",error);
+  }
+}
+function openAuth(){
+  if(firebaseAuth&&firebaseAuth.currentUser){
+    if(confirm("You are signed in. Do you want to sign out?"))signOutUser();
+    return;
+  }
+  document.getElementById("authOverlay").classList.add("open");
+  document.getElementById("authMessage").textContent="";
+}
+function closeAuth(){document.getElementById("authOverlay").classList.remove("open")}
+function toggleAuthMode(){
+  authMode=authMode==="signin"?"signup":"signin";
+  document.getElementById("authTitle").textContent=authMode==="signup"?"Create account":"Sign in";
+  document.getElementById("authSubtitle").textContent=authMode==="signup"?"Create your Smart AI Studio account.":"Sign in to your Smart AI Studio account.";
+  document.getElementById("emailAuthBtn").textContent=authMode==="signup"?"Create account":"Sign in with email";
+  document.getElementById("authSwitch").textContent=authMode==="signup"?"I already have an account":"Create new account";
+  document.getElementById("authPassword").autocomplete=authMode==="signup"?"new-password":"current-password";
+  document.getElementById("authMessage").textContent="";
+}
+async function submitEmailAuth(){
+  const email=document.getElementById("authEmail").value.trim();
+  const password=document.getElementById("authPassword").value;
+  const message=document.getElementById("authMessage");
+  if(!firebaseAuth){message.textContent="Firebase is not configured yet.";return}
+  if(!email||password.length<6){message.textContent="Enter a valid email and a password of at least 6 characters.";return}
+  const button=document.getElementById("emailAuthBtn");
+  button.disabled=true;message.textContent="Please wait...";
+  try{
+    if(authMode==="signup")await firebaseAuth.createUserWithEmailAndPassword(email,password);
+    else await firebaseAuth.signInWithEmailAndPassword(email,password);
+    message.textContent="Account ready.";
+  }catch(error){message.textContent=error.message.replace("Firebase: ","")}
+  finally{button.disabled=false}
+}
+async function signInGoogle(){
+  const message=document.getElementById("authMessage");
+  if(!firebaseAuth){message.textContent="Firebase is not configured yet.";return}
+  try{await firebaseAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}
+  catch(error){
+    if(error.code==="auth/popup-blocked"||error.code==="auth/operation-not-supported-in-this-environment"){
+      try{await firebaseAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider())}
+      catch(e){message.textContent=e.message}
+    }else message.textContent=error.message.replace("Firebase: ","")
+  }
+}
+async function signOutUser(){
+  if(firebaseAuth)try{await firebaseAuth.signOut()}catch(error){alert(error.message)}
+}
+initializeFirebaseAuth();
 let selectedMode="fast";
 let chats=[];
 let currentId=null;
