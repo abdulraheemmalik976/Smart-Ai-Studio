@@ -120,38 +120,81 @@ app.post("/api/chat", async (req, res) => {
 
 
 
-// Hugging Face Inference Providers text-to-video.
-// The token stays on the server in Railway; generation may incur provider charges.
+// Magic Hour text-to-video. Keep the API token on the server in Railway.
 app.post("/api/video", async (req, res) => {
   const prompt = String(req.body?.prompt || "").trim();
+  const duration = Number(req.body?.duration || 6);
+  const aspectRatio = ["16:9", "9:16", "1:1"].includes(req.body?.aspectRatio) ? req.body.aspectRatio : "16:9";
+
   if (!prompt) return res.status(400).json({ error: "Please enter a video prompt." });
   if (prompt.length > 1200) return res.status(400).json({ error: "Prompt is too long (max 1200 characters)." });
+  if (![6, 10, 15].includes(duration)) return res.status(400).json({ error: "Choose a supported video duration." });
 
-  const apiKey = process.env.HF_TOKEN;
-  if (!apiKey) return res.status(503).json({ error: "HF_TOKEN is missing in Railway Variables." });
+  const apiKey = process.env.MAGIC_HOUR_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: "MAGIC_HOUR_API_KEY is missing in Railway Variables." });
 
   try {
-    const { InferenceClient } = await import("@huggingface/inference");
-    const client = new InferenceClient(apiKey);
-    const video = await client.textToVideo({
-      inputs: prompt,
-      model: "Wan-AI/Wan2.2-TI2V-5B",
-      provider: "fal-ai"
+    const response = await fetch("https://api.magichour.ai/v1/text-to-video", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify({
+        name: "Smart AI Studio video",
+        end_seconds: duration,
+        aspect_ratio: aspectRatio,
+        resolution: "480p",
+        model: "ltx-2.3",
+        audio: true,
+        style: { prompt }
+      }),
+      signal: AbortSignal.timeout(45000)
     });
-    const bytes = Buffer.from(await video.arrayBuffer());
-    res.setHeader("Content-Type", "video/mp4");
-    res.setHeader("Content-Length", bytes.length);
-    res.setHeader("Cache-Control", "no-store");
-    return res.status(200).send(bytes);
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const status = response.status === 402 ? 402 : response.status === 401 ? 401 : 502;
+      return res.status(status).json({
+        error: response.status === 402
+          ? "Magic Hour credits are finished or this generation requires a paid plan."
+          : response.status === 401
+            ? "Magic Hour API key was rejected. Check the Railway variable."
+            : data.message || "Magic Hour could not start the video."
+      });
+    }
+    if (!data.id) return res.status(502).json({ error: "Magic Hour did not return a video job ID." });
+    return res.json({ id: data.id, creditsCharged: data.credits_charged ?? null, status: "queued" });
   } catch (error) {
-    const message = String(error.message || "Hugging Face video generation failed.");
-    console.error("HUGGING FACE VIDEO ERROR:", message);
-    const status = /402|payment|credit|billing|quota/i.test(message) ? 402 : 502;
-    return res.status(status).json({
-      error: status === 402
-        ? "Hugging Face/provider credits are insufficient or billing is required. No free generation is available for this request."
-        : message.slice(0, 500)
+    console.error("MAGIC HOUR VIDEO CREATE ERROR:", error);
+    return res.status(502).json({ error: error.name === "TimeoutError" ? "Magic Hour request timed out. Please try again." : "Could not connect to Magic Hour. Please try again." });
+  }
+});
+
+app.get("/api/video/:id", async (req, res) => {
+  const apiKey = process.env.MAGIC_HOUR_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: "MAGIC_HOUR_API_KEY is missing in Railway Variables." });
+  const id = String(req.params.id || "");
+  if (!/^[a-zA-Z0-9_-]{5,100}$/.test(id)) return res.status(400).json({ error: "Invalid video job ID." });
+
+  try {
+    const response = await fetch(`https://api.magichour.ai/v1/video-projects/${encodeURIComponent(id)}`, {
+      headers: { "Authorization": `Bearer ${apiKey}`, "Accept": "application/json" },
+      signal: AbortSignal.timeout(20000)
     });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return res.status(response.status === 402 ? 402 : 502).json({ error: data.message || "Could not check video status." });
+    return res.json({
+      id: data.id,
+      status: data.status,
+      error: data.error?.message || data.error || null,
+      creditsCharged: data.credits_charged ?? null,
+      videoUrl: data.status === "complete" ? data.downloads?.[0]?.url || null : null
+    });
+  } catch (error) {
+    console.error("MAGIC HOUR VIDEO STATUS ERROR:", error);
+    return res.status(502).json({ error: "Could not check video status. Please retry." });
   }
 });
 
