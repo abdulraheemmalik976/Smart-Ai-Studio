@@ -335,20 +335,40 @@ async function generateVideo(){
   const out=document.getElementById("videoAnswer");
   if(!prompt)return alert("Please describe your video first.");
   if(btn.disabled)return;
-  if(!confirm("This test sends a request to Magic Hour and may use your API credits. Continue?"))return;
+  if(!confirm("Hugging Face/Fal provider may charge credits for this video. Continue?"))return;
   btn.disabled=true;
-  btn.textContent="Submitting...";
-  out.textContent="Sending your video request to Magic Hour...";
+  btn.textContent="Generating...";
+  out.textContent="Generating video. This may take several minutes...";
   try{
     const r=await fetch("/api/video",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({prompt,seconds:5,aspect_ratio:document.getElementById("videoRatio").value})
+      body:JSON.stringify({prompt})
     });
-    const d=await r.json();
-    if(!r.ok)throw new Error(d.error||"Video request failed");
-    const project=d.project||{};
-    out.textContent="Magic Hour accepted the job. Project details: "+JSON.stringify(project);
+    if(!r.ok){
+      const d=await r.json().catch(()=>({}));
+      throw new Error(d.error||"Video request failed");
+    }
+    const blob=await r.blob();
+    if(!blob.size)throw new Error("The provider returned an empty video.");
+    if(window.lastGeneratedVideoUrl)URL.revokeObjectURL(window.lastGeneratedVideoUrl);
+    window.lastGeneratedVideoUrl=URL.createObjectURL(blob);
+    out.innerHTML="";
+    const video=document.createElement("video");
+    video.controls=true;
+    video.playsInline=true;
+    video.style.width="100%";
+    video.style.marginTop="12px";
+    video.src=window.lastGeneratedVideoUrl;
+    out.appendChild(video);
+    const link=document.createElement("a");
+    link.href=window.lastGeneratedVideoUrl;
+    link.download="smart-ai-studio-video.mp4";
+    link.textContent="Download video";
+    link.style.display="block";
+    link.style.color="#a5b4fc";
+    link.style.marginTop="10px";
+    out.appendChild(link);
   }catch(e){
     out.textContent="Video error: "+e.message;
   }finally{
