@@ -146,7 +146,7 @@ app.post("/api/video", async (req, res) => {
         end_seconds: duration,
         aspect_ratio: aspectRatio,
         resolution: "480p",
-        model: "ltx-2.3",
+        model: "ltx-2.5",
         audio: true,
         style: { prompt }
       }),
