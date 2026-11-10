@@ -169,7 +169,9 @@ app.post("/api/video", async (req, res) => {
     return res.status(202).json({ message: "Video job submitted to Magic Hour.", project: data });
   } catch (error) {
     console.error("MAGIC HOUR SERVER ERROR:", error);
-    return res.status(502).json({ error: "Could not reach Magic Hour. Please try again." });
+    return res.status(502).json({
+      error: "Magic Hour connection failed: " + (error.cause?.code || error.code || error.message || "Unknown network error")
+    });
   }
 });
 
