@@ -17,6 +17,19 @@ textarea{width:100%;padding:14px;border-radius:12px;min-height:100px;font-size:1
 .row{display:flex;gap:10px;flex-wrap:wrap}
 .row button{flex:1}
 
+
+.hidden{display:none!important}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.tabs button{flex:1;min-width:90px}
+.small{color:#b9c4dc}
+.planGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.plan{background:#111a30;border:1px solid #425071;border-radius:14px;padding:15px}
+.plan h3{margin-top:0}
+.plan ul{padding-left:20px;line-height:1.7}
+.muted{color:#b9c4dc;font-size:13px}
+.notice{background:#342b18;border:1px solid #8b6b28;padding:12px;border-radius:10px;color:#ffe3a3}
+.freeBtn{background:#087e67}
+.premiumBtn{background:#7357db}
 </style>
 </head>
 <body>
@@ -76,9 +89,27 @@ Send Message
   
 <section id="video" class="hidden">
 <h2>🎬 AI Video Maker</h2>
+<p class="small">Choose a free option or the 10-video Premium credit package.</p>
+<div class="planGrid">
+  <div class="plan">
+    <h3>🆓 Free Plan</h3>
+    <p>Use Magic Hour's free video tools and the free allowance shown in your account.</p>
+    <ul><li>Uses Magic Hour's current free limits</li><li>Clip length and watermark depend on its free plan</li><li>Free website allowance is separate from this app</li></ul>
+    <button class="freeBtn" onclick="openFreeVideo()">Open Free Video</button>
+  </div>
+  <div class="plan">
+    <h3>⭐ Premium — 10 Video Credits</h3>
+    <p>Buy a pack of 10 video credits. Credits should be added only after a verified payment.</p>
+    <ul><li>10 video credits per package</li><li>Credit balance will be linked to a customer account</li><li>Paid generation starts after payment and API setup</li></ul>
+    <button class="premiumBtn" onclick="showPremiumInfo()">Choose Premium</button>
+  </div>
+</div>
+<div class="notice" style="margin-top:14px">
+<strong>Payments are not live yet.</strong><br>
+JazzCash, Easypaisa, bank transfer and international Visa/Mastercard will be enabled after merchant approval and secure payment verification. Do not send money yet.
+</div>
 <textarea id="videoPrompt" placeholder="Describe your video..."></textarea>
-<button onclick="videoNotice()">Prepare Video</button>
-<p id="videoAnswer">Video generation provider is not connected yet.</p>
+<p id="videoAnswer" class="small">Free videos open on Magic Hour. Premium video generation will be activated after API and payment integration.</p>
 </section>
 
 <section id="tools" class="hidden">
@@ -280,9 +311,14 @@ document.getElementById(x).classList.toggle("hidden",x!==id);
 });
 }
 
-function videoNotice(){
+function openFreeVideo(){
+window.open("https://magichour.ai/","_blank","noopener");
 document.getElementById("videoAnswer").textContent=
-"Video generation provider is not connected yet.";
+"Magic Hour opened. Sign in there and check your remaining free allowance before generating. Its free website quota is separate from this app's premium credits.";
+}
+function showPremiumInfo(){
+document.getElementById("videoAnswer").textContent=
+"Premium package selected: 10 video credits. Checkout is not active yet; payment gateway approval, customer accounts, secure payment verification and credit tracking must be connected before taking payments.";
 }
 
 function makeCaption(){
