@@ -222,6 +222,7 @@ body.sidebarOpen{overflow:hidden}
 </button>
 <div class="statusPill">● AI Assistant</div>
 <button class="authTrigger" id="authTrigger" type="button" onclick="openAuth()">Sign in</button>
+<div id="creditsBadge" class="statusPill hidden">Credits: --</div>
 </header>
 
 <div id="sidebarShade" class="sidebarShade" onclick="closeSidebar()"></div>
@@ -331,9 +332,34 @@ body.sidebarOpen{overflow:hidden}
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
 let firebaseAuth=null;
+let firestoreDb=null;
 let authMode="signin";
+async function ensureUserProfile(user){
+  const badge=document.getElementById("creditsBadge");
+  try{
+    const userRef=firestoreDb.collection("users").doc(user.uid);
+    const snapshot=await userRef.get();
+    if(!snapshot.exists){
+      await userRef.set({
+        uid:user.uid,
+        email:user.email||"",
+        credits:10,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    const profile=await userRef.get();
+    const credits=Number(profile.data()?.credits||0);
+    badge.textContent="Credits: "+credits;
+    badge.classList.remove("hidden");
+  }catch(error){
+    console.error("Could not load user profile:",error);
+    badge.textContent="Credits unavailable";
+    badge.classList.remove("hidden");
+  }
+}
 async function initializeFirebaseAuth(){
   try{
     const response=await fetch("/api/firebase-config");
@@ -345,11 +371,18 @@ async function initializeFirebaseAuth(){
     }
     if(!firebase.apps.length)firebase.initializeApp(config);
     firebaseAuth=firebase.auth();
-    firebaseAuth.onAuthStateChanged(user=>{
+    firestoreDb=firebase.firestore();
+    firebaseAuth.onAuthStateChanged(async user=>{
       const button=document.getElementById("authTrigger");
+      const badge=document.getElementById("creditsBadge");
       button.textContent=user?(user.displayName||user.email||"My account").split("@")[0]:"Sign in";
       button.title=user?user.email:"Sign in or create an account";
-      if(user)closeAuth();
+      if(user){
+        closeAuth();
+        await ensureUserProfile(user);
+      }else{
+        badge.classList.add("hidden");
+      }
     });
   }catch(error){
     console.error("Firebase initialization failed:",error);
