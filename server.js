@@ -23,6 +23,11 @@ app.post("/api/chat", async (req, res) => {
 
   const message = String(req.body?.message || "").trim();
   const mode = req.body?.mode === "smart" ? "smart" : "fast";
+  const rawHistory = Array.isArray(req.body?.history) ? req.body.history : [];
+  const history = rawHistory.slice(-20).map(item => ({
+    role: item?.role === "assistant" || item?.role === "model" ? "model" : "user",
+    parts: [{ text: String(item?.text || "").slice(0, 5000) }]
+  })).filter(item => item.parts[0].text.trim());
 
   if (!message) {
     return res.status(400).json({
@@ -62,13 +67,18 @@ app.post("/api/chat", async (req, res) => {
         "x-goog-api-key": apiKey
       },
       body: JSON.stringify({
-        contents: [{
-          role: "user",
-          parts: [{ text: message }]
-        }],
+        systemInstruction: {
+          parts: [{
+            text: "You are Smart AI Studio, a helpful, accurate, friendly AI assistant. Answer in the language the user uses, including Urdu or Roman Urdu. Use the conversation history for context. Be honest about uncertainty and never claim to perform actions you cannot perform."
+          }]
+        },
+        contents: [
+          ...history,
+          { role: "user", parts: [{ text: message }] }
+        ],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: mode === "smart" ? 1024 : 512
+          maxOutputTokens: mode === "smart" ? 2048 : 1024
         }
       }),
       signal: controller.signal
