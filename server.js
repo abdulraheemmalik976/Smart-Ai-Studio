@@ -11,6 +11,21 @@ const MODEL_CHAINS = {
   smart: ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
 };
 
+app.get("/api/firebase-config", (req, res) => {
+  const projectId = process.env.FIREBASE_PROJECT_ID || "";
+  const config = {
+    apiKey: process.env.FIREBASE_API_KEY || "",
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || (projectId ? projectId + ".firebaseapp.com" : ""),
+    projectId,
+    appId: process.env.FIREBASE_APP_ID || ""
+  };
+  if (!config.apiKey || !config.projectId || !config.appId) {
+    return res.status(503).json({ error: "Set FIREBASE_API_KEY, FIREBASE_PROJECT_ID and FIREBASE_APP_ID in Railway Variables." });
+  }
+  res.set("Cache-Control", "no-store");
+  res.json(config);
+});
+
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
