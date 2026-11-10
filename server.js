@@ -123,54 +123,37 @@ app.post("/api/chat", async (req, res) => {
 
 
 
-// Magic Hour text-to-video: API key is stored only in Railway Variables.
+// Hugging Face Inference Providers text-to-video.
+// The token stays on the server in Railway; generation may incur provider charges.
 app.post("/api/video", async (req, res) => {
   const prompt = String(req.body?.prompt || "").trim();
   if (!prompt) return res.status(400).json({ error: "Please enter a video prompt." });
-  if (prompt.length > 2000) return res.status(400).json({ error: "Prompt is too long (max 2000 characters)." });
+  if (prompt.length > 1200) return res.status(400).json({ error: "Prompt is too long (max 1200 characters)." });
 
-  const apiKey = process.env.MAGIC_HOUR_API_KEY;
-  if (!apiKey) {
-    return res.status(503).json({ error: "MAGIC_HOUR_API_KEY is missing in Railway Variables." });
-  }
-
-  const seconds = Number(req.body?.seconds || 5);
-  if (!Number.isFinite(seconds) || seconds < 1 || seconds > 10) {
-    return res.status(400).json({ error: "Video duration must be between 1 and 10 seconds." });
-  }
+  const apiKey = process.env.HF_TOKEN;
+  if (!apiKey) return res.status(503).json({ error: "HF_TOKEN is missing in Railway Variables." });
 
   try {
-    const response = await fetch("https://api.magichour.ai/v1/text-to-video", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        end_seconds: seconds,
-        aspect_ratio: req.body?.aspect_ratio === "9:16" ? "9:16" : "16:9",
-        style: { prompt },
-        name: "Smart AI Studio video",
-        model: "ltx-2.5",
-        resolution: "480p",
-        audio: true
-      })
+    const { InferenceClient } = await import("@huggingface/inference");
+    const client = new InferenceClient(apiKey);
+    const video = await client.textToVideo({
+      inputs: prompt,
+      model: "Wan-AI/Wan2.2-TI2V-5B",
+      provider: "fal-ai"
     });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      console.error("MAGIC HOUR API ERROR:", response.status, data);
-      return res.status(response.status).json({
-        error: data.message || data.error || "Magic Hour video request failed.",
-        details: data
-      });
-    }
-
-    return res.status(202).json({ message: "Video job submitted to Magic Hour.", project: data });
+    const bytes = Buffer.from(await video.arrayBuffer());
+    res.setHeader("Content-Type", "video/mp4");
+    res.setHeader("Content-Length", bytes.length);
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).send(bytes);
   } catch (error) {
-    console.error("MAGIC HOUR SERVER ERROR:", error);
-    return res.status(502).json({
-      error: "Magic Hour connection failed: " + (error.cause?.code || error.code || error.message || "Unknown network error")
+    const message = String(error.message || "Hugging Face video generation failed.");
+    console.error("HUGGING FACE VIDEO ERROR:", message);
+    const status = /402|payment|credit|billing|quota/i.test(message) ? 402 : 502;
+    return res.status(status).json({
+      error: status === 402
+        ? "Hugging Face/provider credits are insufficient or billing is required. No free generation is available for this request."
+        : message.slice(0, 500)
     });
   }
 });
