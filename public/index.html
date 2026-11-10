@@ -282,7 +282,7 @@ body.sidebarOpen{overflow:hidden}
   </label>
 </div>
 <label class="small" style="display:flex;align-items:center;gap:8px;margin:14px 0"><input id="videoMusic" type="checkbox" checked> Add soft generated background tones</label>
-<button id="generateVideoBtn" class="freeBtn" onclick="generateFreeVideo()" style="width:100%">Create Free Video</button>
+<button id="generateVideoBtn" class="freeBtn" onclick="generateFreeVideo()" style="width:100%">Create AI Video</button>
 <p id="videoAnswer" class="small">Choose your options and create your video. Keep this page open while it renders.</p>
 </section>
 
@@ -507,138 +507,71 @@ async function generateFreeVideo(){
   const out=document.getElementById("videoAnswer");
   const file=document.getElementById("videoImage").files[0];
   if(!prompt)return alert("Please write your video text first.");
-  if(btn.disabled)return;
-  if(!window.MediaRecorder||!HTMLCanvasElement.prototype.captureStream){
-    out.textContent="Video recording is not supported in this browser. Please update Chrome.";
+  if(file){
+    out.textContent="This first Magic Hour connection currently supports text-to-video. Please remove the photo and try again.";
     return;
   }
-  btn.disabled=true;btn.textContent="Creating video...";
-  out.textContent="Rendering your video on this device. Please keep this page open...";
-  let image=null,imageUrl=null,audioContext=null,stream=null;
+  if(btn.disabled)return;
+  btn.disabled=true;
+  btn.textContent="Starting AI video...";
+  out.textContent="Connecting to Magic Hour. Your free API credits will be used if available...";
   try{
-    if(file){
-      imageUrl=URL.createObjectURL(file);
-      image=await new Promise((resolve,reject)=>{
-        const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error("Photo could not be opened."));img.src=imageUrl;
-      });
-    }
-    const ratio=document.getElementById("videoRatio").value;
-    const portrait=ratio==="9:16",square=ratio==="1:1";
-    const canvas=document.createElement("canvas");
-    canvas.width=portrait?720: square?900:1280;
-    canvas.height=portrait?1280:square?900:720;
-    const ctx=canvas.getContext("2d");
-    const duration=Number(document.getElementById("videoDuration").value)*1000;
-    const style=document.getElementById("videoStyle").value;
-    const textEffect=document.getElementById("videoTextEffect").value;
-    const musicOn=document.getElementById("videoMusic").checked;
-    const palette={
-      cinematic:["#101827","#27364d","#05070d"],
-      neon:["#17052e","#073b4c","#260047"],
-      sunset:["#7c2d12","#be5b38","#312e81"],
-      minimal:["#334155","#64748b","#0f172a"]
-    }[style];
-    const fontSize=portrait?43:square?48:56;
-    ctx.font="bold "+fontSize+"px Arial";
-    const maxWidth=canvas.width*.82,lines=[];
-    let current="";
-    prompt.split(/\s+/).forEach(word=>{
-      const test=current?current+" "+word:word;
-      if(ctx.measureText(test).width>maxWidth&&current){lines.push(current);current=word;}else current=test;
+    const create=await fetch("/api/video",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        prompt,
+        duration:Number(document.getElementById("videoDuration").value),
+        aspectRatio:document.getElementById("videoRatio").value
+      })
     });
-    if(current)lines.push(current);
-    const videoStream=canvas.captureStream(24);
-    let audioDestination=null,oscillators=[];
-    if(musicOn&&window.AudioContext){
-      audioContext=new (window.AudioContext||window.webkitAudioContext)();
-      await audioContext.resume();
-      audioDestination=audioContext.createMediaStreamDestination();
-      const master=audioContext.createGain();master.gain.value=.035;master.connect(audioDestination);
-      [196,246.94,293.66].forEach((hz,i)=>{
-        const osc=audioContext.createOscillator(),gain=audioContext.createGain();
-        osc.type=i===1?"triangle":"sine";osc.frequency.value=hz;
-        gain.gain.value=i===0?.35:.18;
-        osc.connect(gain);gain.connect(master);osc.start();oscillators.push(osc);
-      });
-    }
-    const tracks=[...videoStream.getVideoTracks(),...(audioDestination?audioDestination.stream.getAudioTracks():[])];
-    stream=new MediaStream(tracks);
-    const mime=MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")?"video/webm;codecs=vp9,opus":
-      MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")?"video/webm;codecs=vp8,opus":"video/webm";
-    const recorder=new MediaRecorder(stream,{mimeType:mime});
-    const chunks=[];
-    recorder.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
-    const stopped=new Promise((resolve,reject)=>{recorder.onstop=resolve;recorder.onerror=()=>reject(new Error("Recording failed on this device."));});
-    const started=performance.now();
-    function draw(now){
-      const t=Math.min((now-started)/duration,1),w=canvas.width,h=canvas.height;
-      const g=ctx.createLinearGradient(0,0,w,h);
-      g.addColorStop(0,palette[0]);g.addColorStop(.55,palette[1]);g.addColorStop(1,palette[2]);
-      ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
-      if(image){
-        const cover=Math.max(w/image.width,h/image.height);
-        const zoom=1.04+.13*t+Math.sin(t*Math.PI*2)*.015;
-        const iw=image.width*cover*zoom,ih=image.height*cover*zoom;
-        const drift=Math.sin(t*Math.PI*2)*w*.025;
-        ctx.save();ctx.beginPath();ctx.rect(0,0,w,h);ctx.clip();
-        ctx.drawImage(image,(w-iw)/2+drift,(h-ih)/2,iw,ih);ctx.restore();
-      }else{
-        for(let i=0;i<5;i++){
-          const x=(w*(i+1)/6+Math.sin(t*4+i)*w*.035);
-          const y=h*(.18+i*.15);
-          ctx.beginPath();ctx.arc(x,y,Math.min(w,h)*(.025+i*.008),0,Math.PI*2);
-          ctx.fillStyle="rgba(255,255,255,"+(.035+i*.008)+")";ctx.fill();
-        }
+    const job=await create.json();
+    if(!create.ok)throw new Error(job.error||"Could not start video generation.");
+    if(!job.id)throw new Error("Magic Hour did not return a job ID.");
+
+    btn.textContent="Generating video...";
+    let result=null;
+    const started=Date.now();
+    while(Date.now()-started<10*60*1000){
+      await new Promise(resolve=>setTimeout(resolve,5000));
+      const check=await fetch("/api/video/"+encodeURIComponent(job.id));
+      const status=await check.json();
+      if(!check.ok)throw new Error(status.error||"Could not check video status.");
+      if(status.status==="complete"&&status.videoUrl){result=status;break;}
+      if(status.status==="error"||status.status==="canceled"){
+        throw new Error(typeof status.error==="string"?status.error:"Video generation failed. Try a different prompt.");
       }
-      ctx.fillStyle="rgba(0,0,0,.32)";ctx.fillRect(0,0,w,h);
-      let alpha=Math.min(1,t*5,(1-t)*5+0.2);
-      let offset=0;
-      if(textEffect==="rise")offset=(1-Math.min(1,t*4))*55;
-      if(textEffect==="pulse")alpha=.82+Math.sin(t*Math.PI*8)*.18;
-      ctx.globalAlpha=Math.max(0,Math.min(1,alpha));
-      ctx.textAlign="center";ctx.textBaseline="middle";
-      ctx.font="bold "+fontSize+"px Arial";
-      const lineH=fontSize*1.38,total=lines.length*lineH;
-      let y=h/2-total/2+lineH/2+offset;
-      lines.forEach((line,index)=>{
-        let shown=line;
-        if(textEffect==="type"){
-          const count=Math.max(1,Math.floor(line.length*Math.max(0,Math.min(1,(t*duration/Math.max(1,lines.length)-index*450)/900))));
-          shown=line.slice(0,count);
-        }
-        ctx.lineWidth=6;ctx.strokeStyle="rgba(0,0,0,.65)";
-        ctx.strokeText(shown,w/2,y);ctx.fillStyle="#fff";ctx.fillText(shown,w/2,y);y+=lineH;
-      });
-      ctx.globalAlpha=1;
-      ctx.font="22px Arial";ctx.fillStyle="rgba(255,255,255,.8)";
-      ctx.fillText("SMART AI STUDIO",w/2,h-42);
-      // Short fade transitions at the beginning and end.
-      const fade=Math.min(1,t*8,(1-t)*8);
-      if(fade<1){ctx.fillStyle="rgba(0,0,0,"+(1-fade)+")";ctx.fillRect(0,0,w,h);}
-      if(t<1)requestAnimationFrame(draw);else setTimeout(()=>recorder.stop(),180);
+      out.textContent="AI is creating your video... Status: "+(status.status||"processing");
     }
-    recorder.start(250);requestAnimationFrame(draw);await stopped;
-    const blob=new Blob(chunks,{type:"video/webm"});
-    if(!blob.size)throw new Error("The video file is empty. Please try again.");
-    const url=URL.createObjectURL(blob);
-    if(window.lastGeneratedVideoUrl)URL.revokeObjectURL(window.lastGeneratedVideoUrl);
-    window.lastGeneratedVideoUrl=url;
+    if(!result)throw new Error("Video is taking longer than expected. Please try again later.");
+
     out.innerHTML="";
-    const video=document.createElement("video");video.controls=true;video.playsInline=true;
-    video.style.width="100%";video.style.marginTop="12px";video.src=url;out.appendChild(video);
-    const link=document.createElement("a");link.href=url;link.download="smart-ai-studio-video.webm";
-    link.textContent="Download your video";link.style.display="block";link.style.color="#a5b4fc";link.style.marginTop="12px";out.appendChild(link);
-    const note=document.createElement("p");note.className="small";
-    note.textContent="Video ready. Includes animated text, photo zoom/movement (if photo added), fade transitions and optional generated background tones. This is not AI-generated footage.";
+    const video=document.createElement("video");
+    video.controls=true;
+    video.playsInline=true;
+    video.style.width="100%";
+    video.style.marginTop="12px";
+    video.src=result.videoUrl;
+    out.appendChild(video);
+    const link=document.createElement("a");
+    link.href=result.videoUrl;
+    link.target="_blank";
+    link.rel="noopener";
+    link.download="smart-ai-studio-video.mp4";
+    link.textContent="Open / download your AI video";
+    link.style.display="block";
+    link.style.marginTop="12px";
+    out.appendChild(link);
+    const note=document.createElement("p");
+    note.className="small";
+    note.textContent="Real AI-generated video from Magic Hour. Credits used: "+(result.creditsCharged??"shown in your Magic Hour account")+".";
     out.appendChild(note);
-    if(audioContext)await audioContext.close();
-    if(imageUrl)URL.revokeObjectURL(imageUrl);
   }catch(e){
-    if(stream)stream.getTracks().forEach(track=>track.stop());
-    if(audioContext)try{await audioContext.close();}catch(_){}
-    if(imageUrl)URL.revokeObjectURL(imageUrl);
     out.textContent="Video error: "+(e.message||"Could not create video.");
-  }finally{btn.disabled=false;btn.textContent="Create Free Video";}
+  }finally{
+    btn.disabled=false;
+    btn.textContent="Create AI Video";
+  }
 }
 
 function makeCaption(){
