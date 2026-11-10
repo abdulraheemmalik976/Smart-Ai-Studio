@@ -154,7 +154,13 @@ footer{color:#8b8d92}
  #chat .composer #question{height:50px!important;min-height:50px!important;font-size:15px}
  #chat .composer .roundTool{flex-basis:35px;width:35px!important;min-width:35px;max-width:35px;height:35px}
  #chat .composer #sendBtn{flex-basis:38px!important;width:38px!important;min-width:38px;max-width:38px;height:38px;min-height:38px;max-height:38px}
-}</style>
+}
+/* Send icon must remain a compact circular icon while loading */
+#chat #sendBtn.sendTool{box-sizing:border-box!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:0 0 40px!important;width:40px!important;min-width:40px!important;max-width:40px!important;height:40px!important;min-height:40px!important;max-height:40px!important;margin:0!important;padding:0!important;overflow:hidden!important;white-space:nowrap!important;border-radius:50%!important;background:#10a37f!important;color:#fff!important;font-size:0!important;line-height:1!important}
+#chat #sendBtn.sendTool svg{display:block!important;width:19px!important;height:19px!important;flex:none!important;stroke:#fff!important}
+#chat #sendBtn.sendTool:disabled{opacity:.65;background:#7cae9e!important}
+@media(max-width:560px){#chat #sendBtn.sendTool{flex-basis:38px!important;width:38px!important;min-width:38px!important;max-width:38px!important;height:38px!important;min-height:38px!important;max-height:38px!important}}
+</style>
 </head>
 <body>
 
@@ -411,7 +417,8 @@ if(btn.disabled)return;
 if(!currentChat())newChat();
 
 btn.disabled=true;
-btn.textContent="Please wait...";
+btn.setAttribute("aria-label","Sending message");
+btn.title="Sending message";
 
 addMessage("user",q);
 document.getElementById("question").value="";
@@ -443,7 +450,8 @@ waiting.remove();
 addMessage("assistant","Error: "+e.message);
 }finally{
 btn.disabled=false;
-btn.textContent="Send Message";
+btn.setAttribute("aria-label","Send message");
+btn.title="Send message";
 }
 }
 
