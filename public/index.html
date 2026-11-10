@@ -59,7 +59,7 @@ textarea{width:100%;padding:14px;border-radius:12px;min-height:100px;font-size:1
 </div>
 
 <section id="chat">
-<h2>🤖 AI Chat</h2>
+<h2>🤖 Smart AI Assistant</h2>\n<p class="small">Ask questions, continue conversations, write, learn and solve problems. Smart AI Studio uses your recent chat context.</p>
 
 <div class="modes">
 <button id="fastBtn" class="mode active" onclick="setMode('fast')">
@@ -74,7 +74,7 @@ textarea{width:100%;padding:14px;border-radius:12px;min-height:100px;font-size:1
 
 <div id="answer"></div>
 
-<textarea id="question" placeholder="Write your message..."></textarea>
+<textarea id="question" placeholder="Ask anything... Continue your conversation here."></textarea>
 
 <button id="sendBtn" style="width:100%;margin-top:10px" onclick="sendChat()">
 Send Message
@@ -291,7 +291,11 @@ try{
 const r=await fetch("/api/chat",{
 method:"POST",
 headers:{"Content-Type":"application/json"},
-body:JSON.stringify({message:q,mode:selectedMode})
+body:JSON.stringify({
+  message:q,
+  mode:selectedMode,
+  history:(currentChat()?.messages||[]).slice(0,-1).map(m=>({role:m.role,text:m.text}))
+})
 });
 const d=await r.json();
 
