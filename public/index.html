@@ -44,6 +44,15 @@ textarea:focus,input:focus,select:focus{border-color:#8276ff;box-shadow:0 0 0 3p
 a{color:#b9b0ff}
 footer{text-align:center;color:#72809b;font-size:12px;padding:12px}
 @media(max-width:560px){header{padding:11px 13px}main{padding:12px 10px 30px}section{padding:15px;border-radius:17px}.msg{max-width:96%}.statusPill{font-size:10px}.tabs button{font-size:12px}}
+ 
+.composer{background:#0c1528;border:1px solid #3a4c70;border-radius:19px;padding:10px;box-shadow:0 8px 26px #0003}
+.composer textarea{border:0;background:transparent;box-shadow:none!important;min-height:74px;max-height:180px;padding:9px 8px;resize:vertical}
+.composerActions{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 3px 2px;border-top:1px solid #263653}
+.composerButtons{display:flex;align-items:center;gap:7px}
+.roundTool{width:42px;height:42px;padding:0;border-radius:50%;background:#1b2944;border:1px solid #3a4c70;font-size:17px}
+.roundTool.active{background:#8b2947;border-color:#ff829e;box-shadow:0 0 0 4px #ff829e22;animation:micPulse 1.2s infinite}
+.sendTool{width:44px;height:44px;padding:0;border-radius:14px;font-size:23px;background:linear-gradient(135deg,#8878ff,#5746db)}
+@keyframes micPulse{50%{box-shadow:0 0 0 8px #ff829e10}}
 </style>
 </head>
 <body>
@@ -97,18 +106,19 @@ footer{text-align:center;color:#72809b;font-size:12px;padding:12px}
 
 <div id="answer"></div>
 
-<textarea id="question" placeholder="Ask anything... Continue your conversation here."></textarea>
-
-<button id="sendBtn" style="width:100%;margin-top:10px" onclick="sendChat()">
-Send Message
-</button>
-</section>
-
-<div class="row" style="margin-top:12px">
-  <button onclick="startVoice()">🎤 Speak to AI</button>
-  <button onclick="speakLastAnswer()">🔊 Listen to Answer</button>
+<div class="composer">
+  <textarea id="question" placeholder="Message Smart AI Studio..." aria-label="Write a message"></textarea>
+  <div class="composerActions">
+    <span class="small" id="voiceStatus" aria-live="polite">Type or tap the microphone to speak</span>
+    <div class="composerButtons">
+      <button type="button" id="micBtn" class="roundTool" onclick="startVoice()" aria-label="Speak your message" title="Speak your message">🎙️</button>
+      <button type="button" id="listenBtn" class="roundTool" onclick="speakLastAnswer()" aria-label="Listen to the latest AI answer" title="Listen to the latest AI answer">🔊</button>
+      <button type="button" id="stopSpeakBtn" class="roundTool" onclick="stopSpeaking()" aria-label="Stop voice playback" title="Stop voice playback">⏹</button>
+      <button id="sendBtn" class="sendTool" onclick="sendChat()" aria-label="Send message">➤</button>
+    </div>
+  </div>
 </div>
-<p id="voiceStatus" class="small">Voice Chat ready</p>
+</section>
   
 <section id="video" class="hidden">
 <h2>🎬 Smart AI Video Maker</h2>
@@ -495,68 +505,105 @@ v?"✨ "+v+" | Creating • Learning • Sharing":"Enter a topic.";
 }
 
 let lastAIReply = "";
+let activeRecognition = null;
+let isSpeaking = false;
 
-const SpeechRecognition =
-  window.SpeechRecognition ||
-  window.webkitSpeechRecognition;
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 function startVoice() {
   if (!SpeechRecognition) {
-    alert("Voice input is not supported. Please use Chrome.");
+    document.getElementById("voiceStatus").textContent = "Voice typing is not supported in this browser. Try Chrome.";
     return;
   }
-
+  if (activeRecognition) {
+    try { activeRecognition.stop(); } catch (_) {}
+    activeRecognition = null;
+    return;
+  }
   const recognition = new SpeechRecognition();
+  activeRecognition = recognition;
   recognition.lang = "ur-PK";
   recognition.continuous = false;
-  recognition.interimResults = false;
-
+  recognition.interimResults = true;
   const status = document.getElementById("voiceStatus");
-
+  const mic = document.getElementById("micBtn");
+  let finalText = "";
   recognition.onstart = () => {
-    status.textContent = "🎤 Listening... Speak now";
+    mic.classList.add("active");
+    status.textContent = "🎙️ Listening... Speak now";
   };
-
   recognition.onresult = (event) => {
-    const text = event.results[0][0].transcript;
-    document.getElementById("question").value = text;
-    status.textContent = "Sending your voice message...";
-    sendChat();
+    let interim = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) finalText += transcript + " ";
+      else interim += transcript;
+    }
+    document.getElementById("question").value = (finalText + interim).trim();
   };
-
-  recognition.onerror = () => {
-    status.textContent = "Voice error. Check microphone permission.";
+  recognition.onerror = (event) => {
+    status.textContent = event.error === "not-allowed"
+      ? "Microphone permission denied. Allow microphone access in Chrome."
+      : "Voice input error: " + event.error;
   };
-
   recognition.onend = () => {
-    if (status.textContent.includes("Listening")) {
-      status.textContent = "Voice recording stopped.";
+    mic.classList.remove("active");
+    activeRecognition = null;
+    const text = document.getElementById("question").value.trim();
+    if (text) {
+      status.textContent = "Voice message ready. Sending...";
+      sendChat();
+    } else if (!status.textContent.includes("error") && !status.textContent.includes("denied")) {
+      status.textContent = "No speech detected. Tap the microphone and try again.";
     }
   };
-
-  recognition.start();
+  try { recognition.start(); }
+  catch (error) {
+    activeRecognition = null;
+    mic.classList.remove("active");
+    status.textContent = "Could not start microphone. Please try again.";
+  }
 }
 
 function speakLastAnswer() {
   if (!lastAIReply) {
-    alert("No AI answer available yet.");
+    document.getElementById("voiceStatus").textContent = "Ask AI a question first, then tap Listen.";
     return;
   }
-
   if (!("speechSynthesis" in window)) {
-    alert("Voice output is not supported in this browser.");
+    document.getElementById("voiceStatus").textContent = "Voice playback is not supported in this browser.";
     return;
   }
-
   window.speechSynthesis.cancel();
-
   const speech = new SpeechSynthesisUtterance(lastAIReply);
-  speech.lang = "ur-PK";
-  speech.rate = 1;
-
+  const containsUrdu = /[\u0600-\u06FF]/.test(lastAIReply);
+  speech.lang = containsUrdu ? "ur-PK" : "en-US";
+  speech.rate = 0.96;
+  speech.onstart = () => {
+    isSpeaking = true;
+    document.getElementById("voiceStatus").textContent = "🔊 AI is speaking...";
+    document.getElementById("listenBtn").classList.add("active");
+  };
+  speech.onend = () => {
+    isSpeaking = false;
+    document.getElementById("voiceStatus").textContent = "Finished speaking.";
+    document.getElementById("listenBtn").classList.remove("active");
+  };
+  speech.onerror = () => {
+    isSpeaking = false;
+    document.getElementById("voiceStatus").textContent = "Could not play voice. Check device sound.";
+    document.getElementById("listenBtn").classList.remove("active");
+  };
   window.speechSynthesis.speak(speech);
-  }
-  
+}
+
+function stopSpeaking() {
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  isSpeaking = false;
+  document.getElementById("listenBtn").classList.remove("active");
+  document.getElementById("voiceStatus").textContent = "Voice playback stopped.";
+}
+
 load();
 </script>
 </body>
