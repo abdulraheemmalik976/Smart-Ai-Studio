@@ -93,8 +93,8 @@ Send Message
 <div class="planGrid">
   <div class="plan">
     <h3>🆓 Free Plan</h3>
-    <p>Use Magic Hour's free video tools and the free allowance shown in your account.</p>
-    <ul><li>Uses Magic Hour's current free limits</li><li>Clip length and watermark depend on its free plan</li><li>Free website allowance is separate from this app</li></ul>
+    <p>Use Magic Hour's free Text-to-Video tool: up to 3 shared generations per day, 3 seconds each at 480p with watermark, subject to daily availability.</p>
+    <ul><li>Up to 3 shared generations per day</li><li>3 seconds, 480p, with watermark</li><li>Free website allowance is separate from API credits</li></ul>
     <button class="freeBtn" onclick="openFreeVideo()">Open Free Video</button>
   </div>
   <div class="plan">
@@ -319,9 +319,9 @@ document.getElementById(x).classList.toggle("hidden",x!==id);
 }
 
 function openFreeVideo(){
-window.open("https://magichour.ai/","_blank","noopener");
+window.open("https://magichour.ai/products/text-to-video","_blank","noopener");
 document.getElementById("videoAnswer").textContent=
-"Magic Hour opened. Sign in there and check your remaining free allowance before generating. Its free website quota is separate from this app's premium credits.";
+"Magic Hour free Text-to-Video opened. Free website allowance is up to 3 shared generations per day, 3 seconds each at 480p with watermark, subject to the allowance shown on the page. This is separate from API credits.";
 }
 function showPremiumInfo(){
 document.getElementById("videoAnswer").textContent=
