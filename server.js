@@ -171,8 +171,7 @@ app.post("/api/chat", requireUser, async (req, res) => {
     }
 
     console.log("AI RESPONSE RECEIVED:", usedModel);
-    const remainingCredits = await chargeCredits(req.db, req.user.uid, 1);
-    return res.json({ reply, mode, model: usedModel, remainingCredits });
+    return res.json({ reply, mode, model: usedModel, freeChat: true });
   } catch (error) {
     console.error("SERVER ERROR:", error);
     return res.status(500).json({
