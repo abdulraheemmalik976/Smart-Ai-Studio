@@ -109,7 +109,14 @@ Send Message
 JazzCash, Easypaisa, bank transfer and international Visa/Mastercard will be enabled after merchant approval and secure payment verification. Do not send money yet.
 </div>
 <textarea id="videoPrompt" placeholder="Describe your video..."></textarea>
-<p id="videoAnswer" class="small">Free videos open on Magic Hour. Premium video generation will be activated after API and payment integration.</p>
+<div class="row" style="margin-top:10px">
+  <button id="generateVideoBtn" class="premiumBtn" onclick="generateVideo()">Generate Test Video</button>
+  <select id="videoRatio" aria-label="Video aspect ratio" style="padding:10px;border-radius:10px">
+    <option value="16:9">Landscape 16:9</option>
+    <option value="9:16">Portrait 9:16</option>
+  </select>
+</div>
+<p id="videoAnswer" class="small">Video generation will use your Magic Hour API credits. Test only after adding the private API key in Railway. Payments and customer credits are not active.</p>
 </section>
 
 <section id="tools" class="hidden">
@@ -319,6 +326,35 @@ document.getElementById("videoAnswer").textContent=
 function showPremiumInfo(){
 document.getElementById("videoAnswer").textContent=
 "Premium selected: $7 USD for 10 video credits (planned maximum 5 seconds each). Checkout is not active. We must confirm the exact Magic Hour model cost and connect secure payment verification before accepting money.";
+}
+
+
+async function generateVideo(){
+  const prompt=document.getElementById("videoPrompt").value.trim();
+  const btn=document.getElementById("generateVideoBtn");
+  const out=document.getElementById("videoAnswer");
+  if(!prompt)return alert("Please describe your video first.");
+  if(btn.disabled)return;
+  if(!confirm("This test sends a request to Magic Hour and may use your API credits. Continue?"))return;
+  btn.disabled=true;
+  btn.textContent="Submitting...";
+  out.textContent="Sending your video request to Magic Hour...";
+  try{
+    const r=await fetch("/api/video",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({prompt,seconds:5,aspect_ratio:document.getElementById("videoRatio").value})
+    });
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||"Video request failed");
+    const project=d.project||{};
+    out.textContent="Magic Hour accepted the job. Project details: "+JSON.stringify(project);
+  }catch(e){
+    out.textContent="Video error: "+e.message;
+  }finally{
+    btn.disabled=false;
+    btn.textContent="Generate Test Video";
+  }
 }
 
 function makeCaption(){
