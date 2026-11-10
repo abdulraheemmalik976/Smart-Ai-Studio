@@ -53,6 +53,69 @@ footer{text-align:center;color:#72809b;font-size:12px;padding:12px}
 .roundTool.active{background:#8b2947;border-color:#ff829e;box-shadow:0 0 0 4px #ff829e22;animation:micPulse 1.2s infinite}
 .sendTool{width:44px;height:44px;padding:0;border-radius:14px;font-size:23px;background:linear-gradient(135deg,#8878ff,#5746db)}
 @keyframes micPulse{50%{box-shadow:0 0 0 8px #ff829e10}}
+ 
+/* Clean, calm chat-first interface */
+:root{--bg:#f7f7f8;--panel:#ffffff;--panel2:#f1f2f4;--line:#e5e7eb;--muted:#6b7280;--text:#202123;--accent:#10a37f;--accent2:#0d8b70}
+body{background:#f7f7f8;color:#202123;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+header{position:sticky;top:0;background:rgba(255,255,255,.94);backdrop-filter:blur(16px);border-bottom:1px solid #e7e7e9;padding:12px max(16px,calc((100vw - 980px)/2));color:#202123}
+header h1{font-size:17px;font-weight:650;color:#202123}
+header p{color:#777;font-size:11px}
+.brandMark{background:#202123;box-shadow:none;border-radius:11px}
+.statusPill{background:#f0faf6;color:#087f5b;border:1px solid #d6f0e5}
+main{max-width:850px;padding:18px 18px 46px}
+main>section:first-child{background:transparent;border:0;box-shadow:none;padding:0;margin:0 auto 12px;max-width:790px}
+main>section:first-child .row{justify-content:space-between}
+main>section:first-child button{background:#fff;color:#333;border:1px solid #e3e3e5;font-weight:550;padding:9px 13px;border-radius:10px}
+.tabs{max-width:790px;margin:0 auto 18px;background:#fff;border:1px solid #e7e7e9;border-radius:13px;padding:4px;gap:3px}
+.tabs button{color:#62646a;border-radius:9px;font-weight:550;padding:10px;background:transparent}
+.tabs button:first-child{background:#f0f1f2;color:#202123}
+section{background:#fff;border:1px solid #e8e8eb;border-radius:18px;padding:22px;margin:12px auto;box-shadow:0 2px 8px rgba(0,0,0,.025)}
+#chat{max-width:790px;min-height:65vh;display:flex;flex-direction:column}
+#chat h2{font-size:22px;letter-spacing:-.5px;margin:2px 0 4px;color:#202123}
+#chat>p.small{color:#777;margin:0 0 12px}
+.modes{margin:10px 0 4px;gap:7px}
+.modes button{background:#f7f7f8;color:#555;border:1px solid #e6e6e8;border-radius:10px;font-weight:550}
+.modes button.active{background:#e9f6f1;color:#087f5b;border-color:#bfe8d8}
+#modeInfo{font-size:12px;color:#888;margin:2px 0}
+#answer{flex:1;min-height:180px;margin:18px 0;gap:16px}
+.msg{font-size:15px;line-height:1.72;max-width:94%;padding:12px 15px;border-radius:16px;color:#26272a}
+.msg.user{background:#f0f1f2;color:#202123;border:1px solid #e7e7e9;border-bottom-right-radius:6px}
+.msg.bot{background:transparent;border:0;padding:8px 2px;border-radius:0;color:#202123;border-bottom-left-radius:0}
+.composer{background:#fff;border:1px solid #d9dadd;border-radius:22px;padding:10px 12px;box-shadow:0 3px 12px rgba(0,0,0,.06)}
+.composer textarea{background:transparent;color:#202123;border:0;min-height:58px;font-size:15px;padding:7px 5px;box-shadow:none!important}
+.composer textarea::placeholder{color:#92949a}
+.composerActions{border-top:0;padding:3px 2px 0}
+.composerActions .small{color:#8a8d93;font-size:11px}
+.composerButtons{gap:5px}
+.roundTool{width:38px;height:38px;background:#f2f3f4;border:0;color:#4b4d52;border-radius:50%;font-size:16px}
+.roundTool.active{background:#fff0f1;color:#c03950;border:1px solid #f3c4cb;box-shadow:0 0 0 4px #fce8eb}
+.sendTool{width:40px;height:40px;background:#202123;color:white;border-radius:50%;font-size:20px}
+#video,#tools{max-width:790px;background:#fff;color:#202123}
+#video h2,#tools h2{color:#202123}
+#video textarea,#tools textarea{background:#fff;color:#202123;border:1px solid #d9dadd}
+#video select,#video input,#tools input{background:#fff;color:#202123;border:1px solid #d9dadd}
+#history{border-top:1px solid #ececef}
+#history h3{color:#333;font-size:14px}
+#historyList button{background:#f4f4f5!important;color:#333!important;border:1px solid #e5e5e7!important}
+.notice{background:#fff8e8;border-color:#f1dfb5;color:#795d22}
+.plan{background:#fafafa;border-color:#e7e7e9;color:#222}
+a{color:#087f5b}
+footer{color:#8b8d92}
+.freeBtn{background:#0d8b70}.premiumBtn{background:#202123}
+@media(max-width:560px){
+ header{padding:10px 13px}
+ main{padding:12px 10px 30px}
+ section{padding:15px;border-radius:15px}
+ #chat{min-height:72vh}
+ #chat h2{font-size:20px}
+ .msg{max-width:98%;font-size:14px}
+ .composer{border-radius:18px}
+ .composerActions{align-items:flex-end}
+ .composerActions .small{max-width:125px;line-height:1.35}
+ .roundTool{width:35px;height:35px}
+ .sendTool{width:37px;height:37px}
+ .tabs button{font-size:12px;padding:10px 5px}
+}
 </style>
 </head>
 <body>
