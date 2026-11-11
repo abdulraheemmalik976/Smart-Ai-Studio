@@ -439,6 +439,13 @@ header #creditsBadge{order:2;margin-left:auto;white-space:nowrap}
 <p id="paymentStatus" class="small" role="status"></p>
 <p class="notice">Card payments (Visa/Mastercard) are not active yet. Never share your PIN, password or OTP.</p>
 </div>
+<div id="adminPaymentArea" class="plan hidden" style="margin-top:18px">
+<h3>Admin: Pending payment requests</h3>
+<p class="small">Approve only after checking the real payment in your JazzCash/Easypaisa account. Never approve from a screenshot alone.</p>
+<button id="refreshAdminPaymentsBtn" onclick="loadAdminPayments()">Refresh requests</button>
+<div id="adminPaymentStatus" class="small" role="status"></div>
+<div id="adminPaymentList"></div>
+</div>
 </section>
 <footer>Smart AI Studio · Your ideas, powered by AI</footer>
 </main>
@@ -499,6 +506,8 @@ async function initializeFirebaseAuth(){
       const badge=document.getElementById("creditsBadge");
       button.textContent=user?(user.displayName||user.email||"My account").split("@")[0]:"Sign in";
       button.title=user?user.email:"Sign in or create an account";
+      const adminArea=document.getElementById("adminPaymentArea");
+      if(adminArea)adminArea.classList.toggle("hidden",!!user&&String(user.email||"").toLowerCase()==="malikabdulraheem749@gmail.com");
       if(user){
         closeAuth();
         await ensureUserProfile(user);
@@ -837,6 +846,51 @@ async function submitManualPayment(){
     status.textContent="Request submitted. Your credits will be added only after the payment is verified.";
     document.getElementById("transactionRef").value="";
   }catch(error){status.textContent=error.message;btn.disabled=false;}
+}
+
+async function loadAdminPayments(){
+  const list=document.getElementById("adminPaymentList");
+  const status=document.getElementById("adminPaymentStatus");
+  const btn=document.getElementById("refreshAdminPaymentsBtn");
+  if(!firebaseAuth||!firebaseAuth.currentUser){status.textContent="Please sign in with the admin account.";return;}
+  btn.disabled=true;status.textContent="Loading pending requests...";list.replaceChildren();
+  try{
+    const response=await fetch("/api/admin/manual-payment-requests",{headers:{Authorization:"Bearer "+await firebaseAuth.currentUser.getIdToken()}});
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.error||"Could not load requests.");
+    if(!data.requests||!data.requests.length){status.textContent="No pending payment requests.";return;}
+    status.textContent=data.requests.length+" pending request(s).";
+    data.requests.forEach(request=>{
+      const card=document.createElement("div");
+      card.className="plan";
+      card.style.marginTop="10px";
+      const details=document.createElement("p");
+      details.className="small";
+      details.textContent="User: "+(request.email||request.uid)+" | Method: "+request.method+" | Amount: Rs "+request.amountPkr+" | Package: "+request.packageId+" | Credits: "+request.credits+" | Transaction ID: "+request.transactionRef+" | Sender: "+(request.payerName||"Not provided");
+      const approve=document.createElement("button");
+      approve.textContent="Approve after checking payment";
+      approve.onclick=()=>approveManualPayment(request.id,approve);
+      card.append(details,approve);
+      list.appendChild(card);
+    });
+  }catch(error){status.textContent=error.message;}
+  finally{btn.disabled=false;}
+}
+async function approveManualPayment(requestId,button){
+  if(!confirm("Have you checked your actual JazzCash/Easypaisa account and confirmed the exact amount? Only approve if the money is received."))return;
+  button.disabled=true;
+  const status=document.getElementById("adminPaymentStatus");
+  try{
+    const response=await fetch("/api/admin/manual-payment-requests/"+encodeURIComponent(requestId)+"/approve",{
+      method:"POST",
+      headers:{Authorization:"Bearer "+await firebaseAuth.currentUser.getIdToken()}
+    });
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.error||"Could not approve payment.");
+    status.textContent="Payment approved and credits added.";
+    await refreshCredits();
+    await loadAdminPayments();
+  }catch(error){status.textContent=error.message;button.disabled=false;}
 }
 
 async function generateFreeVideo(){
