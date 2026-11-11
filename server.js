@@ -365,9 +365,15 @@ app.post("/api/payments/create", requireUser, async (req, res) => {
       amountPaisa: pkg.pricePkr * 100, currency: "PKR", tracker,
       status: "pending", createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
+    if (typeof sf.auth?.passport?.create !== "function") {
+      throw new Error("Safepay SDK method unavailable: auth.passport.create");
+    }
     const auth = await sf.auth.passport.create();
     const tbt = auth?.data;
     if (typeof tbt !== "string" || !tbt) throw new Error("Safepay checkout token was not returned.");
+    if (typeof sf.checkouts?.payment?.create !== "function") {
+      throw new Error("Safepay SDK method unavailable: checkouts.payment.create");
+    }
     const checkoutUrl = sf.checkouts.payment.create({
       tracker, tbt, environment: "sandbox", source: "hosted",
       redirect_url: "https://smart-ai-studio-production.up.railway.app/payment/return",
