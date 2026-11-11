@@ -8,6 +8,6 @@
   "dependencies": {
     "express": "^4.21.2",
     "firebase-admin": "^13.0.2",
-    "@sfpy/node-core": "^1.2.0"
+    "@sfpy/node-core": "^0.3.5"
   }
 }
