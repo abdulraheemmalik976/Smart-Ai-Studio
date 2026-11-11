@@ -379,26 +379,23 @@ app.post("/api/payments/create", requireUser, async (req, res) => {
     return res.status(502).json({ error: "Could not start Safepay checkout. Please try again." });
   }
 });
-function verifySafepaySignature(req) {
-  const secretB64 = process.env.SAFEPAY_WEBHOOK_SECRET || "";
-  const signature = req.get("X-SFPY-SIGNATURE") || "";
-  const timestamp = req.get("X-SFPY-TIMESTAMP") || "";
-  if (!secretB64 || !signature || !timestamp || !req.rawBody) return false;
-  const time = Date.parse(timestamp);
-  if (!Number.isFinite(time) || Math.abs(Date.now() - time) > 5 * 60 * 1000) return false;
-  const secret = Buffer.from(secretB64, "base64");
-  const expected = "sha256=" + crypto.createHmac("sha256", secret)
-    .update(timestamp).update(".").update(req.rawBody).digest("hex");
-  const a = Buffer.from(expected), b = Buffer.from(signature);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
 app.post("/api/payments/webhook", async (req, res) => {
-  if (!verifySafepaySignature(req)) return res.status(401).send("Invalid webhook signature");
-  const event = req.body || {};
-  if (event.type !== "payment.succeeded" || event.data?.success !== true) return res.sendStatus(200);
-  const tracker = event.data?.tracker?.token || event.data?.tracker;
-  if (typeof tracker !== "string" || !tracker.startsWith("track_")) return res.status(400).send("Missing tracker");
-  const eventId = req.get("X-SFPY-EVENT-ID") || crypto.createHash("sha256").update(req.rawBody).digest("hex");
+  const signature = req.get("X-SFPY-SIGNATURE") || "";
+  let event;
+  try {
+    const sf = getSafepay();
+    event = sf.webhooks.constructEvent(req.rawBody.toString("utf8"), signature, process.env.SAFEPAY_WEBHOOK_SECRET || "");
+  } catch (error) {
+    console.error("SAFEPAY WEBHOOK SIGNATURE ERROR:", error.message);
+    return res.status(400).send("Invalid webhook signature");
+  }
+  if (event.type !== "payment.succeeded") return res.sendStatus(200);
+  const payment = event.data || {};
+  const tracker = typeof payment.tracker === "string" ? payment.tracker : payment.tracker?.token;
+  if (!tracker || payment.state !== "TRACKER_ENDED" || payment.currency !== "PKR") {
+    return res.status(400).send("Payment is not confirmed");
+  }
+  const eventId = event.token || crypto.createHash("sha256").update(req.rawBody).digest("hex");
   try {
     const db = getAdminApp().firestore();
     const orderQuery = await db.collection("paymentOrders").where("tracker", "==", tracker).limit(1).get();
@@ -413,6 +410,10 @@ app.post("/api/payments/webhook", async (req, res) => {
         return;
       }
       const order = orderSnap.data();
+      if (Number(payment.amount) !== Number(order.amountPaisa)) {
+        tx.create(eventRef, { receivedAt: admin.firestore.FieldValue.serverTimestamp(), type: event.type, ignored: true, reason: "amount_mismatch" });
+        return;
+      }
       const userRef = db.collection("users").doc(order.uid);
       const userSnap = await tx.get(userRef);
       if (!userSnap.exists) throw new Error("PAYMENT_USER_MISSING");
