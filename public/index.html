@@ -420,12 +420,12 @@ header #creditsBadge{order:2;margin-left:auto;white-space:nowrap}
 <h2>Video credits &amp; pricing</h2>
 <p class="small">AI Chat is free. Video generation uses credits based on duration: 6s = 10, 10s = 16, 15s = 24 credits.</p>
 <div class="planGrid">
-<div class="plan"><h3>Starter</h3><strong>Rs 399</strong><p>20 credits</p><button disabled aria-disabled="true">Coming soon</button></div>
-<div class="plan"><h3>Basic</h3><strong>Rs 749</strong><p>40 credits</p><button disabled aria-disabled="true">Coming soon</button></div>
-<div class="plan"><h3>Pro</h3><strong>Rs 1,399</strong><p>80 credits</p><button disabled aria-disabled="true">Coming soon</button></div>
-<div class="plan"><h3>Premium</h3><strong>Rs 2,599</strong><p>160 credits</p><button disabled aria-disabled="true">Coming soon</button></div>
+<div class="plan"><h3>Starter</h3><strong>Rs 399</strong><p>20 credits</p><button onclick="buyCredits('starter')">Buy Starter</button></div>
+<div class="plan"><h3>Basic</h3><strong>Rs 749</strong><p>40 credits</p><button onclick="buyCredits('basic')">Buy Basic</button></div>
+<div class="plan"><h3>Pro</h3><strong>Rs 1,399</strong><p>80 credits</p><button onclick="buyCredits('pro')">Buy Pro</button></div>
+<div class="plan"><h3>Premium</h3><strong>Rs 2,599</strong><p>160 credits</p><button onclick="buyCredits('premium')">Buy Premium</button></div>
 </div>
-<p class="notice" style="margin-top:12px">Payments are temporarily unavailable while secure checkout is being tested. These prices are proposals only; purchases are disabled.</p>
+<p class="notice" style="margin-top:12px">Sandbox test checkout is being enabled. Test transactions only; no real money is charged.</p>
 </section>
 <footer>Smart AI Studio · Your ideas, powered by AI</footer>
 </main>
