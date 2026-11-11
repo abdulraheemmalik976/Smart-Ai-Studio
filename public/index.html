@@ -420,10 +420,10 @@ header #creditsBadge{order:2;margin-left:auto;white-space:nowrap}
 <h2>Video credits &amp; pricing</h2>
 <p class="small">AI Chat is free. Video generation uses credits based on duration: 6s = 10, 10s = 16, 15s = 24 credits.</p>
 <div class="planGrid">
-<div class="plan"><h3>Starter</h3><strong>Rs 399</strong><p>20 credits</p></div>
-<div class="plan"><h3>Basic</h3><strong>Rs 749</strong><p>40 credits</p></div>
-<div class="plan"><h3>Pro</h3><strong>Rs 1,399</strong><p>80 credits</p></div>
-<div class="plan"><h3>Premium</h3><strong>Rs 2,599</strong><p>160 credits</p></div>
+<div class="plan"><h3>Starter</h3><strong>Rs 399</strong><p>20 credits</p><button onclick="buyCredits('starter')">Buy Starter</button></div>
+<div class="plan"><h3>Basic</h3><strong>Rs 749</strong><p>40 credits</p><button onclick="buyCredits('basic')">Buy Basic</button></div>
+<div class="plan"><h3>Pro</h3><strong>Rs 1,399</strong><p>80 credits</p><button onclick="buyCredits('pro')">Buy Pro</button></div>
+<div class="plan"><h3>Premium</h3><strong>Rs 2,599</strong><p>160 credits</p><button onclick="buyCredits('premium')">Buy Premium</button></div>
 </div>
 <p class="notice" style="margin-top:12px">Payment checkout is not live yet. These are proposed prices only; no money will be charged and no credits can be purchased until secure payment verification is enabled.</p>
 </section>
@@ -770,6 +770,21 @@ function show(id){
 ["chat","video","tools","pricing"].forEach(x=>{
 document.getElementById(x).classList.toggle("hidden",x!==id);
 });
+}
+
+async function buyCredits(packageId){
+  if(!firebaseAuth||!firebaseAuth.currentUser){openAuth();alert("Please sign in first.");return;}
+  try{
+    const response=await fetch("/api/payments/create",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+await firebaseAuth.currentUser.getIdToken()},
+      body:JSON.stringify({packageId})
+    });
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.error||"Could not start payment.");
+    if(!data.checkoutUrl||!data.checkoutUrl.startsWith("https://"))throw new Error("Invalid checkout link.");
+    window.location.href=data.checkoutUrl;
+  }catch(error){alert(error.message);}
 }
 
 async function generateFreeVideo(){
