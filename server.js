@@ -357,7 +357,6 @@ app.post("/api/payments/create", requireUser, async (req, res) => {
       currency: "PKR",
       amount: pkg.pricePkr * 100,
       include_fees: false,
-      metadata: { order_id: orderRef.id, package_id: packageId }
     });
     const tracker = setup?.data?.tracker?.token;
     if (!tracker) throw new Error("Safepay tracker was not returned.");
