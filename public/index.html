@@ -507,7 +507,7 @@ async function initializeFirebaseAuth(){
       button.textContent=user?(user.displayName||user.email||"My account").split("@")[0]:"Sign in";
       button.title=user?user.email:"Sign in or create an account";
       const adminArea=document.getElementById("adminPaymentArea");
-      if(adminArea)adminArea.classList.toggle("hidden",!!user&&String(user.email||"").toLowerCase()==="malikabdulraheem749@gmail.com");
+      if(adminArea)adminArea.classList.toggle("hidden",!(user&&String(user.email||"").toLowerCase()==="malikabdulraheem749@gmail.com"));
       if(user){
         closeAuth();
         await ensureUserProfile(user);
