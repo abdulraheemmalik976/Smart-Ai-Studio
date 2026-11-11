@@ -1,6 +1,8 @@
 const express = require("express");
 const path = require("path");
 const admin = require("firebase-admin");
+const Safepay = require("@sfpy/node-core");
+const crypto = require("crypto");
 
 const app = express();
 
@@ -324,12 +326,119 @@ app.get("/api/video/:id", requireUser, async (req, res) => {
 });
 
 
-// Payments are paused until the provider SDK integration is verified.
-app.post("/api/payments/create", requireUser, (req, res) => {
-  return res.status(503).json({ error: "Payments are temporarily unavailable. Your credits are safe." });
+// Safepay one-time hosted checkout (sandbox). Never grant credits from redirect alone.
+const PAYMENT_PACKAGES = Object.freeze({
+  starter: { credits: 20, pricePkr: 399 },
+  basic: { credits: 40, pricePkr: 749 },
+  pro: { credits: 80, pricePkr: 1399 },
+  premium: { credits: 160, pricePkr: 2599 }
 });
-app.post("/api/payments/webhook", (req, res) => {
-  return res.status(503).send("Payments temporarily unavailable");
+function getSafepay() {
+  const secret = process.env.SAFEPAY_SECRET_KEY;
+  if (!secret) throw new Error("Safepay secret key is not configured.");
+  return Safepay(secret, {
+    authType: "secret",
+    host: process.env.SAFEPAY_HOST || "https://sandbox.api.getsafepay.com"
+  });
+}
+app.post("/api/payments/create", requireUser, async (req, res) => {
+  const packageId = String(req.body?.packageId || "");
+  const pkg = PAYMENT_PACKAGES[packageId];
+  if (!pkg) return res.status(400).json({ error: "Invalid credit package." });
+  try {
+    const db = req.db;
+    const orderRef = db.collection("paymentOrders").doc();
+    const sf = getSafepay();
+    const setup = await sf.payments.session.setup({
+      merchant_api_key: process.env.SAFEPAY_PUBLIC_KEY,
+      intent: "CYBERSOURCE",
+      mode: "payment",
+      entry_mode: "raw",
+      currency: "PKR",
+      amount: pkg.pricePkr * 100,
+      include_fees: false,
+      metadata: { order_id: orderRef.id, uid: req.user.uid, package_id: packageId }
+    });
+    const tracker = setup?.data?.tracker?.token;
+    if (!tracker) throw new Error("Safepay tracker was not returned.");
+    await orderRef.set({
+      uid: req.user.uid, packageId, credits: pkg.credits,
+      amountPaisa: pkg.pricePkr * 100, currency: "PKR", tracker,
+      status: "pending", createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    const auth = await sf.auth.passport.create();
+    const tbt = auth?.data;
+    if (typeof tbt !== "string" || !tbt) throw new Error("Safepay checkout token was not returned.");
+    const checkoutUrl = sf.checkouts.payment.create({
+      tracker, tbt, environment: "sandbox", source: "hosted",
+      redirect_url: "https://smart-ai-studio-production.up.railway.app/payment/return",
+      cancel_url: "https://smart-ai-studio-production.up.railway.app/payment/return?cancelled=1"
+    });
+    if (typeof checkoutUrl !== "string" || !checkoutUrl.startsWith("https://")) {
+      throw new Error("Safepay returned an invalid checkout URL.");
+    }
+    return res.json({ checkoutUrl });
+  } catch (error) {
+    console.error("SAFEPAY CHECKOUT ERROR:", error.message);
+    return res.status(502).json({ error: "Could not start Safepay checkout. Please try again." });
+  }
+});
+app.post("/api/payments/webhook", async (req, res) => {
+  let event;
+  try {
+    const sf = getSafepay();
+    event = sf.webhooks.constructEvent(
+      req.rawBody || Buffer.from(""),
+      req.get("X-SFPY-SIGNATURE") || "",
+      process.env.SAFEPAY_WEBHOOK_SECRET || ""
+    );
+  } catch (error) {
+    console.error("SAFEPAY WEBHOOK SIGNATURE ERROR:", error.message);
+    return res.status(400).send("Invalid webhook signature");
+  }
+  if (event.type !== "payment.succeeded" || event.data?.success !== true) return res.sendStatus(200);
+  const trackerValue = event.data?.tracker;
+  const tracker = typeof trackerValue === "string" ? trackerValue : trackerValue?.token;
+  const eventId = event.token || crypto.createHash("sha256").update(req.rawBody || Buffer.from("")).digest("hex");
+  if (!tracker || !eventId) return res.status(400).send("Missing payment identifiers");
+  try {
+    const sf = getSafepay();
+    const verified = await sf.reporter.payments.fetch(tracker);
+    const payment = verified?.data?.tracker;
+    const purchase = payment?.purchase_totals?.base_amount;
+    if (payment?.state !== "TRACKER_ENDED" || purchase?.currency !== "PKR") {
+      return res.status(400).send("Payment is not captured");
+    }
+    const db = getAdminApp().firestore();
+    const found = await db.collection("paymentOrders").where("tracker", "==", tracker).limit(1).get();
+    if (found.empty) return res.status(404).send("Order not found");
+    const orderRef = found.docs[0].ref;
+    const eventRef = db.collection("safepayEvents").doc(String(eventId));
+    await db.runTransaction(async tx => {
+      const orderSnap = await tx.get(orderRef);
+      const eventSnap = await tx.get(eventRef);
+      if (eventSnap.exists) return;
+      if (!orderSnap.exists || orderSnap.data().status !== "pending") {
+        tx.create(eventRef, { type: event.type, ignored: true, receivedAt: admin.firestore.FieldValue.serverTimestamp() });
+        return;
+      }
+      const order = orderSnap.data();
+      if (Number(purchase.amount) !== Number(order.amountPaisa) || order.currency !== purchase.currency) {
+        tx.create(eventRef, { type: event.type, ignored: true, reason: "amount_mismatch", receivedAt: admin.firestore.FieldValue.serverTimestamp() });
+        return;
+      }
+      const userRef = db.collection("users").doc(order.uid);
+      const userSnap = await tx.get(userRef);
+      if (!userSnap.exists) throw new Error("PAYMENT_USER_MISSING");
+      tx.update(userRef, { credits: Number(userSnap.data().credits || 0) + Number(order.credits) });
+      tx.update(orderRef, { status: "paid", paidAt: admin.firestore.FieldValue.serverTimestamp(), webhookEventId: eventId });
+      tx.create(eventRef, { type: event.type, tracker, receivedAt: admin.firestore.FieldValue.serverTimestamp() });
+    });
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error("SAFEPAY WEBHOOK PROCESS ERROR:", error.message);
+    return res.sendStatus(500);
+  }
 });
 app.get("/payment/return", (req, res) => {
   res.type("html").send("<!doctype html><html><meta name='viewport' content='width=device-width,initial-scale=1'><title>Payment status</title><body style='font-family:Arial;padding:24px'><h2>Payment received for checking</h2><p>Credits will appear only after Safepay confirms payment. Return to Smart AI Studio and refresh your credits.</p><a href='/'>Back to Smart AI Studio</a></body></html>");
