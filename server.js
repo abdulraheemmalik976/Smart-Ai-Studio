@@ -58,6 +58,19 @@ async function refundCredits(db, uid, amount) {
   });
 }
 
+// Video credit prices are server-owned; never trust a price from the browser.
+const VIDEO_CREDIT_COST = Object.freeze({6:10,10:16,15:24});
+const CREDIT_PACKAGES = Object.freeze([
+  {id:"starter",name:"Starter",credits:20,pricePkr:399},
+  {id:"basic",name:"Basic",credits:40,pricePkr:749},
+  {id:"pro",name:"Pro",credits:80,pricePkr:1399},
+  {id:"premium",name:"Premium",credits:160,pricePkr:2599}
+]);
+app.get("/api/pricing",(req,res)=>{
+  res.set("Cache-Control","no-store");
+  res.json({currency:"PKR",packages:CREDIT_PACKAGES,videoCredits:VIDEO_CREDIT_COST,paymentsEnabled:false});
+});
+
 const MODEL_CHAINS = {
   fast: ["gemini-3.5-flash-lite", "gemini-3.5-flash"],
   smart: ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
@@ -209,10 +222,11 @@ app.post("/api/video", requireUser, async (req, res) => {
   const apiKey = process.env.MAGIC_HOUR_API_KEY;
   if (!apiKey) return res.status(503).json({ error: "MAGIC_HOUR_API_KEY is missing in Railway Variables." });
 
+  const videoCost = VIDEO_CREDIT_COST[duration];
   let creditsReserved = false;
   try {
     // Reserve app credits before calling the paid video provider.
-    await chargeCredits(req.db, req.user.uid, 5);
+    await chargeCredits(req.db, req.user.uid, videoCost);
     creditsReserved = true;
 
     const response = await fetch("https://api.magichour.ai/v1/text-to-video", {
@@ -236,7 +250,7 @@ app.post("/api/video", requireUser, async (req, res) => {
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      await refundCredits(req.db, req.user.uid, 5);
+      await refundCredits(req.db, req.user.uid, videoCost);
       creditsReserved = false;
       const status = response.status === 402 ? 402 : response.status === 401 ? 401 : 502;
       return res.status(status).json({
@@ -248,7 +262,7 @@ app.post("/api/video", requireUser, async (req, res) => {
       });
     }
     if (!data.id) {
-      await refundCredits(req.db, req.user.uid, 5);
+      await refundCredits(req.db, req.user.uid, videoCost);
       creditsReserved = false;
       return res.status(502).json({ error: "Magic Hour did not return a video job ID." });
     }
@@ -257,19 +271,19 @@ app.post("/api/video", requireUser, async (req, res) => {
       uid: req.user.uid,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
-    creditsReserved = false; // The 5 credits are now the charge for this queued job.
+    creditsReserved = false; // The duration-based credits are charged for this queued job.
     const remainingCredits = await getCredits(req.db, req.user.uid);
-    return res.json({ id: data.id, creditsCharged: data.credits_charged ?? null, remainingCredits, status: "queued" });
+    return res.json({ id: data.id, appCreditsCharged: videoCost, creditsCharged: data.credits_charged ?? null, remainingCredits, status: "queued" });
   } catch (error) {
     if (creditsReserved) {
       try {
-        await refundCredits(req.db, req.user.uid, 5);
+        await refundCredits(req.db, req.user.uid, videoCost);
       } catch (refundError) {
         console.error("VIDEO CREDIT REFUND ERROR:", refundError);
       }
     }
     if (error.message === "NOT_ENOUGH_CREDITS") {
-      return res.status(402).json({ error: "You need at least 5 app credits to generate a video." });
+      return res.status(402).json({ error: "You need more app credits for this video duration." });
     }
     if (error.message === "USER_PROFILE_MISSING") {
       return res.status(404).json({ error: "Your credit profile is missing. Please sign out and sign in again." });
