@@ -336,7 +336,7 @@ const PAYMENT_PACKAGES = Object.freeze({
 function getSafepay() {
   const secret = process.env.SAFEPAY_SECRET_KEY;
   if (!secret) throw new Error("Safepay secret key is not configured.");
-  return Safepay(secret, {
+  return new Safepay(secret, {
     authType: "secret",
     host: process.env.SAFEPAY_HOST || "https://sandbox.api.getsafepay.com"
   });
