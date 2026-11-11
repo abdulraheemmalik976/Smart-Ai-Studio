@@ -46,6 +46,18 @@ async function chargeCredits(db, uid, amount) {
   });
 }
 
+async function refundCredits(db, uid, amount) {
+  const ref = db.collection("users").doc(uid);
+  return db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new Error("USER_PROFILE_MISSING");
+    const current = Number(snap.data().credits || 0);
+    const refunded = current + amount;
+    tx.update(ref, { credits: refunded });
+    return refunded;
+  });
+}
+
 const MODEL_CHAINS = {
   fast: ["gemini-3.5-flash-lite", "gemini-3.5-flash"],
   smart: ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
@@ -197,7 +209,12 @@ app.post("/api/video", requireUser, async (req, res) => {
   const apiKey = process.env.MAGIC_HOUR_API_KEY;
   if (!apiKey) return res.status(503).json({ error: "MAGIC_HOUR_API_KEY is missing in Railway Variables." });
 
+  let creditsReserved = false;
   try {
+    // Reserve app credits before calling the paid video provider.
+    await chargeCredits(req.db, req.user.uid, 5);
+    creditsReserved = true;
+
     const response = await fetch("https://api.magichour.ai/v1/text-to-video", {
       method: "POST",
       headers: {
@@ -219,6 +236,8 @@ app.post("/api/video", requireUser, async (req, res) => {
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
+      await refundCredits(req.db, req.user.uid, 5);
+      creditsReserved = false;
       const status = response.status === 402 ? 402 : response.status === 401 ? 401 : 502;
       return res.status(status).json({
         error: response.status === 402
@@ -228,10 +247,28 @@ app.post("/api/video", requireUser, async (req, res) => {
             : data.message || "Magic Hour could not start the video."
       });
     }
-    if (!data.id) return res.status(502).json({ error: "Magic Hour did not return a video job ID." });
-    const remainingCredits = await chargeCredits(req.db, req.user.uid, 5);
+    if (!data.id) {
+      await refundCredits(req.db, req.user.uid, 5);
+      creditsReserved = false;
+      return res.status(502).json({ error: "Magic Hour did not return a video job ID." });
+    }
+    creditsReserved = false; // The 5 credits are now the charge for this queued job.
+    const remainingCredits = await getCredits(req.db, req.user.uid);
     return res.json({ id: data.id, creditsCharged: data.credits_charged ?? null, remainingCredits, status: "queued" });
   } catch (error) {
+    if (creditsReserved) {
+      try {
+        await refundCredits(req.db, req.user.uid, 5);
+      } catch (refundError) {
+        console.error("VIDEO CREDIT REFUND ERROR:", refundError);
+      }
+    }
+    if (error.message === "NOT_ENOUGH_CREDITS") {
+      return res.status(402).json({ error: "You need at least 5 app credits to generate a video." });
+    }
+    if (error.message === "USER_PROFILE_MISSING") {
+      return res.status(404).json({ error: "Your credit profile is missing. Please sign out and sign in again." });
+    }
     console.error("MAGIC HOUR VIDEO CREATE ERROR:", error);
     return res.status(502).json({ error: error.name === "TimeoutError" ? "Magic Hour request timed out. Please try again." : "Could not connect to Magic Hour. Please try again." });
   }
