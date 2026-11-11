@@ -794,7 +794,9 @@ async function generateFreeVideo(){
     const started=Date.now();
     while(Date.now()-started<10*60*1000){
       await new Promise(resolve=>setTimeout(resolve,5000));
-      const check=await fetch("/api/video/"+encodeURIComponent(job.id));
+      const check=await fetch("/api/video/"+encodeURIComponent(job.id),{
+        headers:{"Authorization":"Bearer "+await firebaseAuth.currentUser.getIdToken()}
+      });
       const status=await check.json();
       if(!check.ok)throw new Error(status.error||"Could not check video status.");
       if(status.status==="complete"&&status.videoUrl){result=status;break;}
