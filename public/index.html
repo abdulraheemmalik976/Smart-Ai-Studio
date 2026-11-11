@@ -420,12 +420,25 @@ header #creditsBadge{order:2;margin-left:auto;white-space:nowrap}
 <h2>Video credits &amp; pricing</h2>
 <p class="small">AI Chat is free. Video generation uses credits based on duration: 6s = 10, 10s = 16, 15s = 24 credits.</p>
 <div class="planGrid">
-<div class="plan"><h3>Starter</h3><strong>Rs 399</strong><p>20 credits</p><button onclick="buyCredits('starter')">Buy Starter</button></div>
-<div class="plan"><h3>Basic</h3><strong>Rs 749</strong><p>40 credits</p><button onclick="buyCredits('basic')">Buy Basic</button></div>
-<div class="plan"><h3>Pro</h3><strong>Rs 1,399</strong><p>80 credits</p><button onclick="buyCredits('pro')">Buy Pro</button></div>
-<div class="plan"><h3>Premium</h3><strong>Rs 2,599</strong><p>160 credits</p><button onclick="buyCredits('premium')">Buy Premium</button></div>
+<div class="plan"><h3>Starter</h3><strong>Rs 399</strong><p>20 credits</p><button onclick="openPayment('starter')">Buy Starter</button></div>
+<div class="plan"><h3>Basic</h3><strong>Rs 749</strong><p>40 credits</p><button onclick="openPayment('basic')">Buy Basic</button></div>
+<div class="plan"><h3>Pro</h3><strong>Rs 1,399</strong><p>80 credits</p><button onclick="openPayment('pro')">Buy Pro</button></div>
+<div class="plan"><h3>Premium</h3><strong>Rs 2,599</strong><p>160 credits</p><button onclick="openPayment('premium')">Buy Premium</button></div>
 </div>
-<p class="notice" style="margin-top:12px">Sandbox test checkout is being enabled. Test transactions only; no real money is charged.</p>
+<div id="manualPaymentBox" class="plan" style="margin-top:16px">
+<h3>Pay by Easypaisa or JazzCash</h3>
+<p class="small">Select a package above to start. Send the exact amount, then submit your transaction reference. Credits are added only after the payment is checked.</p>
+<div id="paymentInstructions" class="small">Choose a credit package first.</div>
+<label for="paymentMethod">Payment method</label>
+<select id="paymentMethod" onchange="updatePaymentInstructions()"><option value="jazzcash">JazzCash</option><option value="easypaisa">Easypaisa</option></select>
+<label for="transactionRef">Transaction ID / reference</label>
+<input id="transactionRef" maxlength="100" placeholder="Enter payment transaction ID">
+<label for="payerName">Sender name (optional)</label>
+<input id="payerName" maxlength="80" placeholder="Name used for payment">
+<button id="submitPaymentBtn" onclick="submitManualPayment()" disabled>Submit payment for verification</button>
+<p id="paymentStatus" class="small" role="status"></p>
+<p class="notice">Card payments (Visa/Mastercard) are not active yet. Never share your PIN, password or OTP.</p>
+</div>
 </section>
 <footer>Smart AI Studio · Your ideas, powered by AI</footer>
 </main>
@@ -772,19 +785,58 @@ document.getElementById(x).classList.toggle("hidden",x!==id);
 });
 }
 
-async function buyCredits(packageId){
+let selectedPaymentPackage = "";
+let paymentMethodsCache = null;
+async function openPayment(packageId){
   if(!firebaseAuth||!firebaseAuth.currentUser){openAuth();alert("Please sign in first.");return;}
+  selectedPaymentPackage=packageId;
+  document.getElementById("paymentStatus").textContent="";
+  document.getElementById("transactionRef").value="";
+  document.getElementById("submitPaymentBtn").disabled=false;
+  document.getElementById("paymentInstructions").textContent="Loading payment details...";
   try{
-    const response=await fetch("/api/payments/create",{
+    if(!paymentMethodsCache){
+      const r=await fetch("/api/payment-methods");
+      paymentMethodsCache=await r.json();
+      if(!r.ok)throw new Error("Could not load payment details.");
+    }
+    updatePaymentInstructions();
+    document.getElementById("manualPaymentBox").scrollIntoView({behavior:"smooth",block:"center"});
+  }catch(e){document.getElementById("paymentStatus").textContent=e.message;}
+}
+function updatePaymentInstructions(){
+  if(!paymentMethodsCache)return;
+  const method=document.getElementById("paymentMethod").value;
+  const item=paymentMethodsCache.methods.find(x=>x.id===method);
+  const pkg={starter:["Starter","399"],basic:["Basic","749"],pro:["Pro","1399"],premium:["Premium","2599"]}[selectedPaymentPackage];
+  if(!item||!pkg)return;
+  document.getElementById("paymentInstructions").textContent=
+    "Package: "+pkg[0]+" | Amount: Rs "+pkg[1]+" | Account title: "+paymentMethodsCache.accountTitle+" | "+item.name+": "+item.number+". Send the exact amount, then enter the transaction reference below.";
+}
+async function submitManualPayment(){
+  if(!firebaseAuth||!firebaseAuth.currentUser){openAuth();return;}
+  const btn=document.getElementById("submitPaymentBtn");
+  const status=document.getElementById("paymentStatus");
+  const transactionRef=document.getElementById("transactionRef").value.trim();
+  if(!selectedPaymentPackage)return alert("Choose a credit package first.");
+  if(transactionRef.length<4)return alert("Enter the transaction ID/reference.");
+  btn.disabled=true;status.textContent="Submitting for verification...";
+  try{
+    const response=await fetch("/api/payments/manual-request",{
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+await firebaseAuth.currentUser.getIdToken()},
-      body:JSON.stringify({packageId})
+      body:JSON.stringify({
+        packageId:selectedPaymentPackage,
+        method:document.getElementById("paymentMethod").value,
+        transactionRef,
+        payerName:document.getElementById("payerName").value.trim()
+      })
     });
     const data=await response.json();
-    if(!response.ok)throw new Error(data.error||"Could not start payment.");
-    if(!data.checkoutUrl||!data.checkoutUrl.startsWith("https://"))throw new Error("Invalid checkout link.");
-    window.location.href=data.checkoutUrl;
-  }catch(error){alert(error.message);}
+    if(!response.ok)throw new Error(data.error||"Could not submit payment.");
+    status.textContent="Request submitted. Your credits will be added only after the payment is verified.";
+    document.getElementById("transactionRef").value="";
+  }catch(error){status.textContent=error.message;btn.disabled=false;}
 }
 
 async function generateFreeVideo(){
