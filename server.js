@@ -349,18 +349,22 @@ app.post("/api/payments/manual-request", requireUser, async (req, res) => {
   if (transactionRef.length < 4) return res.status(400).json({ error: "Enter the transaction ID/reference." });
   try {
     const db = req.db;
-    const duplicate = await db.collection("manualPaymentRequests").where("method", "==", method).where("transactionRef", "==", transactionRef).limit(1).get();
-    if (!duplicate.empty) return res.status(409).json({ error: "This transaction reference has already been submitted." });
-    const ref = db.collection("manualPaymentRequests").doc();
-    await ref.set({
-      uid: req.user.uid, email: req.user.email || "", packageId,
-      credits: pkg.credits, amountPkr: pkg.pricePkr, method,
-      transactionRef, payerName, status: "pending",
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    const requestId = crypto.createHash("sha256").update(method + ":" + transactionRef.toLowerCase()).digest("hex").slice(0, 32);
+    const ref = db.collection("manualPaymentRequests").doc(requestId);
+    await db.runTransaction(async tx => {
+      const existing = await tx.get(ref);
+      if (existing.exists) throw new Error("DUPLICATE_PAYMENT_REFERENCE");
+      tx.create(ref, {
+        uid: req.user.uid, email: req.user.email || "", packageId,
+        credits: pkg.credits, amountPkr: pkg.pricePkr, method,
+        transactionRef, payerName, status: "pending",
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
     });
     return res.status(201).json({ requestId: ref.id, status: "pending", message: "Payment request submitted. Credits will be added after admin verification." });
   } catch (error) {
     console.error("MANUAL PAYMENT REQUEST ERROR:", error.message);
+    if (error.message === "DUPLICATE_PAYMENT_REFERENCE") return res.status(409).json({ error: "This transaction reference has already been submitted." });
     return res.status(500).json({ error: "Could not submit payment request." });
   }
 });
