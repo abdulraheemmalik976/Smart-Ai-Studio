@@ -252,6 +252,11 @@ app.post("/api/video", requireUser, async (req, res) => {
       creditsReserved = false;
       return res.status(502).json({ error: "Magic Hour did not return a video job ID." });
     }
+    // Save ownership so only the account that created this job can check its status.
+    await req.db.collection("videoJobs").doc(String(data.id)).set({
+      uid: req.user.uid,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
     creditsReserved = false; // The 5 credits are now the charge for this queued job.
     const remainingCredits = await getCredits(req.db, req.user.uid);
     return res.json({ id: data.id, creditsCharged: data.credits_charged ?? null, remainingCredits, status: "queued" });
@@ -274,13 +279,17 @@ app.post("/api/video", requireUser, async (req, res) => {
   }
 });
 
-app.get("/api/video/:id", async (req, res) => {
+app.get("/api/video/:id", requireUser, async (req, res) => {
   const apiKey = process.env.MAGIC_HOUR_API_KEY;
   if (!apiKey) return res.status(503).json({ error: "MAGIC_HOUR_API_KEY is missing in Railway Variables." });
   const id = String(req.params.id || "");
   if (!/^[a-zA-Z0-9_-]{5,100}$/.test(id)) return res.status(400).json({ error: "Invalid video job ID." });
 
   try {
+    const jobSnap = await req.db.collection("videoJobs").doc(id).get();
+    if (!jobSnap.exists || jobSnap.data().uid !== req.user.uid) {
+      return res.status(404).json({ error: "Video job not found for this account." });
+    }
     const response = await fetch(`https://api.magichour.ai/v1/video-projects/${encodeURIComponent(id)}`, {
       headers: { "Authorization": `Bearer ${apiKey}`, "Accept": "application/json" },
       signal: AbortSignal.timeout(20000)
