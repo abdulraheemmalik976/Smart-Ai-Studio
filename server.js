@@ -326,6 +326,82 @@ app.get("/api/video/:id", requireUser, async (req, res) => {
 });
 
 
+// Manual local payments. Credits are added only by the authenticated admin after checking the real transaction.
+app.get("/api/payment-methods", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({
+    accountTitle: "Abdul Raheem",
+    methods: [
+      { id: "jazzcash", name: "JazzCash", number: "03278096968" },
+      { id: "easypaisa", name: "Easypaisa", number: "03215500864" }
+    ],
+    cardPaymentsEnabled: false
+  });
+});
+app.post("/api/payments/manual-request", requireUser, async (req, res) => {
+  const packageId = String(req.body?.packageId || "");
+  const method = String(req.body?.method || "");
+  const transactionRef = String(req.body?.transactionRef || "").trim().slice(0, 100);
+  const payerName = String(req.body?.payerName || "").trim().slice(0, 80);
+  const pkg = PAYMENT_PACKAGES[packageId];
+  if (!pkg) return res.status(400).json({ error: "Invalid credit package." });
+  if (!["jazzcash", "easypaisa", "bank"].includes(method)) return res.status(400).json({ error: "Choose a valid payment method." });
+  if (transactionRef.length < 4) return res.status(400).json({ error: "Enter the transaction ID/reference." });
+  try {
+    const db = req.db;
+    const duplicate = await db.collection("manualPaymentRequests").where("method", "==", method).where("transactionRef", "==", transactionRef).limit(1).get();
+    if (!duplicate.empty) return res.status(409).json({ error: "This transaction reference has already been submitted." });
+    const ref = db.collection("manualPaymentRequests").doc();
+    await ref.set({
+      uid: req.user.uid, email: req.user.email || "", packageId,
+      credits: pkg.credits, amountPkr: pkg.pricePkr, method,
+      transactionRef, payerName, status: "pending",
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return res.status(201).json({ requestId: ref.id, status: "pending", message: "Payment request submitted. Credits will be added after admin verification." });
+  } catch (error) {
+    console.error("MANUAL PAYMENT REQUEST ERROR:", error.message);
+    return res.status(500).json({ error: "Could not submit payment request." });
+  }
+});
+async function requirePaymentAdmin(req, res, next) {
+  const adminEmail = String(process.env.PAYMENT_ADMIN_EMAIL || "").trim().toLowerCase();
+  if (!adminEmail) return res.status(503).json({ error: "Payment admin is not configured yet." });
+  if (String(req.user.email || "").toLowerCase() !== adminEmail) return res.status(403).json({ error: "Admin access required." });
+  next();
+}
+app.get("/api/admin/manual-payment-requests", requireUser, requirePaymentAdmin, async (req, res) => {
+  try {
+    const snap = await req.db.collection("manualPaymentRequests").where("status", "==", "pending").limit(50).get();
+    return res.json({ requests: snap.docs.map(doc => ({ id: doc.id, ...doc.data(), createdAt: doc.data().createdAt?.toDate?.().toISOString?.() || null })) });
+  } catch (error) {
+    console.error("ADMIN PAYMENT LIST ERROR:", error.message);
+    return res.status(500).json({ error: "Could not load payment requests." });
+  }
+});
+app.post("/api/admin/manual-payment-requests/:id/approve", requireUser, requirePaymentAdmin, async (req, res) => {
+  const id = String(req.params.id || "");
+  if (!/^[A-Za-z0-9]{10,40}$/.test(id)) return res.status(400).json({ error: "Invalid request ID." });
+  try {
+    const requestRef = req.db.collection("manualPaymentRequests").doc(id);
+    await req.db.runTransaction(async tx => {
+      const requestSnap = await tx.get(requestRef);
+      if (!requestSnap.exists || requestSnap.data().status !== "pending") throw new Error("REQUEST_NOT_PENDING");
+      const request = requestSnap.data();
+      const userRef = req.db.collection("users").doc(request.uid);
+      const userSnap = await tx.get(userRef);
+      if (!userSnap.exists) throw new Error("USER_PROFILE_MISSING");
+      tx.update(userRef, { credits: Number(userSnap.data().credits || 0) + Number(request.credits) });
+      tx.update(requestRef, { status: "approved", approvedAt: admin.firestore.FieldValue.serverTimestamp(), approvedBy: req.user.email });
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    if (error.message === "REQUEST_NOT_PENDING") return res.status(409).json({ error: "Request is no longer pending." });
+    console.error("ADMIN PAYMENT APPROVAL ERROR:", error.message);
+    return res.status(500).json({ error: "Could not approve payment request." });
+  }
+});
+
 // Safepay one-time hosted checkout (sandbox). Never grant credits from redirect alone.
 const PAYMENT_PACKAGES = Object.freeze({
   starter: { credits: 20, pricePkr: 399 },
