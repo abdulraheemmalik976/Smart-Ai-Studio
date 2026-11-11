@@ -416,7 +416,7 @@ header #creditsBadge{order:2;margin-left:auto;white-space:nowrap}
 <p id="bioOut"></p>
 </section>
 
-<section id="pricing" style="max-width:790px">
+<section id="pricing" class="hidden" style="max-width:790px">
 <h2>Video credits &amp; pricing</h2>
 <p class="small">AI Chat is free. Video generation uses credits based on duration: 6s = 10, 10s = 16, 15s = 24 credits.</p>
 <div class="planGrid">
@@ -767,7 +767,7 @@ btn.title="Send message";
 }
 
 function show(id){
-["chat","video","tools"].forEach(x=>{
+["chat","video","tools","pricing"].forEach(x=>{
 document.getElementById(x).classList.toggle("hidden",x!==id);
 });
 }
